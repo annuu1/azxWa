@@ -190,6 +190,11 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
     ).limit(1);
 
     if (contact) {
+      // Disable AI Auto Reply for this contact (Human agent manual handoff)
+      await db.update(contacts)
+        .set({ aiEnabled: false, updatedAt: new Date() })
+        .where(eq(contacts.id, contact.id));
+
       await db.insert(activities).values({
         organizationId: orgId,
         contactId: contact.id,

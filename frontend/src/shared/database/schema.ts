@@ -34,6 +34,7 @@ export const contacts = sqliteTable('contacts', {
   name: text('name'),
   pushName: text('push_name'),
   isGroup: integer('is_group', { mode: 'boolean' }).default(false),
+  aiEnabled: integer('ai_enabled', { mode: 'boolean' }).default(true).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
@@ -145,6 +146,18 @@ export const templates = sqliteTable('templates', {
   organizationId: text('organization_id').references(() => organizations.id).notNull(),
   name: text('name').notNull(),
   content: text('content').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const aiSettings = sqliteTable('ai_settings', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull().unique(),
+  enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+  provider: text('provider').default('groq').notNull(), // 'groq' | 'openrouter'
+  model: text('model').default('llama-3.8b-instant').notNull(),
+  apiKey: text('api_key'),
+  systemPrompt: text('system_prompt').default('You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

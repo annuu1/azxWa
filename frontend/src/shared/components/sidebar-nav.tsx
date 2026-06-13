@@ -18,6 +18,7 @@ const navItems = [
   { name: 'WhatsApp Accounts', href: '/dashboard/whatsapp', icon: Smartphone },
   { name: 'CRM', href: '/dashboard/crm', icon: Users },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
+  { name: 'AI Settings', href: '/dashboard/ai', icon: Settings },
 ];
 
 export function SidebarNav() {
