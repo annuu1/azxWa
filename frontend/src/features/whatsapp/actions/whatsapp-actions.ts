@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/shared/database';
-import { whatsappSessions } from '@/shared/database/schema';
+import { whatsappSessions, contacts, activities } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { 
   startSession as engineStartSession, 
@@ -121,9 +121,40 @@ export async function deleteWhatsAppSession(sessionId: string) {
 export async function getWhatsAppChats(sessionId: string) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
 
   try {
     const chats = await engineGetChats(sessionId);
+    
+    // Auto-sync WhatsApp chats into CRM contacts table
+    if (chats && chats.length > 0) {
+      await db.transaction(async (tx) => {
+        for (const chat of chats) {
+          const whatsappId = chat.id._serialized;
+          const [existingContact] = await tx.select().from(contacts).where(
+            and(
+              eq(contacts.whatsappId, whatsappId),
+              eq(contacts.organizationId, orgId)
+            )
+          ).limit(1);
+
+          if (!existingContact) {
+            await tx.insert(contacts).values({
+              organizationId: orgId,
+              whatsappId,
+              name: chat.name || null,
+              pushName: chat.name || null,
+              isGroup: chat.isGroup || false,
+            });
+          } else if (existingContact.name !== chat.name) {
+            await tx.update(contacts)
+              .set({ name: chat.name, pushName: chat.name, updatedAt: new Date() })
+              .where(eq(contacts.id, existingContact.id));
+          }
+        }
+      });
+    }
+
     return { success: true, chats };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -145,9 +176,29 @@ export async function getWhatsAppMessages(sessionId: string, chatId: string, lim
 export async function sendWhatsAppMessage(sessionId: string, chatId: string, text: string) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
 
   try {
     const response = await engineSendMessage(sessionId, chatId, text);
+
+    // Log message sent activity in CRM if the contact exists
+    const [contact] = await db.select().from(contacts).where(
+      and(
+        eq(contacts.whatsappId, chatId),
+        eq(contacts.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (contact) {
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: contact.id,
+        type: 'MESSAGE_SENT',
+        description: `Outgoing message sent: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`,
+        userId: userSession.userId as string,
+      });
+    }
+
     return { success: true, result: response.result };
   } catch (error: any) {
     return { success: false, error: error.message };

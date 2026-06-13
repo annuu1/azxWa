@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 import { v4 as uuidv4 } from 'uuid';
 
 export const organizations = sqliteTable('organizations', {
@@ -38,12 +38,67 @@ export const contacts = sqliteTable('contacts', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
+export const pipelines = sqliteTable('pipelines', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const pipelineStages = sqliteTable('pipeline_stages', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  pipelineId: text('pipeline_id').references(() => pipelines.id).notNull(),
+  name: text('name').notNull(),
+  position: integer('position').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
 export const leads = sqliteTable('leads', {
   id: text('id').primaryKey().$defaultFn(() => uuidv4()),
   organizationId: text('organization_id').references(() => organizations.id).notNull(),
   contactId: text('contact_id').references(() => contacts.id).notNull(),
   status: text('status', { enum: ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'WON', 'LOST'] }).default('NEW'),
+  stageId: text('stage_id').references(() => pipelineStages.id),
+  assignedUserId: text('assigned_user_id').references(() => users.id),
   source: text('source'),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const tags = sqliteTable('tags', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  color: text('color').notNull().default('#3b82f6'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const contactTags = sqliteTable('contact_tags', {
+  contactId: text('contact_id').references(() => contacts.id).notNull(),
+  tagId: text('tag_id').references(() => tags.id).notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.contactId, table.tagId] })
+}));
+
+export const notes = sqliteTable('notes', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  contactId: text('contact_id').references(() => contacts.id).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  content: text('content').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const activities = sqliteTable('activities', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  contactId: text('contact_id').references(() => contacts.id).notNull(),
+  type: text('type').notNull(), // 'MESSAGE_RECEIVED', 'MESSAGE_SENT', 'NOTE_ADDED', 'LEAD_STAGE_CHANGED', 'LEAD_ASSIGNED', 'CONVERTED'
+  description: text('description').notNull(),
+  userId: text('user_id').references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
