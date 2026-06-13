@@ -46,6 +46,9 @@
     "email": "anton.voylenko@gmail.com"
   },
   "license": "MIT",
+  "workspaces": [
+    "frontend"
+  ],
   "engines": {
     "node": ">=20"
   },
