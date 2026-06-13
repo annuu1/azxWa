@@ -1,7 +1,7 @@
 import { db } from '@/shared/database';
-import { queueJobs, activities, contacts } from '@/shared/database/schema';
+import { queueJobs, campaigns, activities, contacts } from '@/shared/database/schema';
 import { sendMessage as engineSendMessage } from '@/features/whatsapp/lib/whatsapp-service';
-import { eq, and, lte } from 'drizzle-orm';
+import { eq, and, lte, sql } from 'drizzle-orm';
 
 let workerRunning = false;
 
@@ -31,16 +31,22 @@ export function startQueueWorker() {
 async function processQueueJobs() {
   const now = new Date();
   
-  // Find up to 5 pending jobs scheduled for now or earlier
-  const pendingJobs = await db.select()
-    .from(queueJobs)
-    .where(
-      and(
-        eq(queueJobs.status, 'PENDING'),
-        lte(queueJobs.scheduledFor, now)
-      )
+  // Find up to 5 pending jobs scheduled for now or earlier, belonging to active or no campaigns
+  const results = await db.select({
+    job: queueJobs
+  })
+  .from(queueJobs)
+  .leftJoin(campaigns, eq(queueJobs.campaignId, campaigns.id))
+  .where(
+    and(
+      eq(queueJobs.status, 'PENDING'),
+      lte(queueJobs.scheduledFor, now),
+      sql`(${queueJobs.campaignId} IS NULL OR ${campaigns.status} NOT IN ('PAUSED', 'FAILED', 'CANCELLED'))`
     )
-    .limit(5);
+  )
+  .limit(5);
+
+  const pendingJobs = results.map(r => r.job);
 
   if (pendingJobs.length === 0) return;
 

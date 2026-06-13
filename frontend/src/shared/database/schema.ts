@@ -111,7 +111,7 @@ export const campaigns = sqliteTable('campaigns', {
   targetTagId: text('target_tag_id').references(() => tags.id),
   sessionId: text('session_id').notNull(),
   scheduledAt: integer('scheduled_at', { mode: 'timestamp' }),
-  status: text('status', { enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'] }).default('PENDING').notNull(),
+  status: text('status', { enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'PAUSED', 'CANCELLED'] }).default('PENDING').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

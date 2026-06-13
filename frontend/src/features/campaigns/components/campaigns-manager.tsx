@@ -228,6 +228,7 @@ export default function CampaignsManager() {
         <CampaignDetailsModal 
           campaignId={selectedCampaignId} 
           onClose={() => setSelectedCampaignId(null)}
+          onUpdate={fetchData}
         />
       )}
     </div>

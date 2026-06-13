@@ -152,3 +152,168 @@ export async function getCampaignDetails(campaignId: string) {
     return { success: false, error: error.message };
   }
 }
+
+export async function pauseCampaign(campaignId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    await db.update(campaigns)
+      .set({ status: 'PAUSED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.organizationId, orgId)
+        )
+      );
+
+    revalidatePath('/dashboard/campaigns');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function resumeCampaign(campaignId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    await db.update(campaigns)
+      .set({ status: 'PENDING', updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.organizationId, orgId)
+        )
+      );
+
+    revalidatePath('/dashboard/campaigns');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function cancelCampaign(campaignId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    await db.update(campaigns)
+      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.organizationId, orgId)
+        )
+      );
+
+    await db.update(queueJobs)
+      .set({ status: 'FAILED', error: 'Campaign cancelled by user', updatedAt: new Date() })
+      .where(
+        and(
+          eq(queueJobs.campaignId, campaignId),
+          eq(queueJobs.status, 'PENDING')
+        )
+      );
+
+    revalidatePath('/dashboard/campaigns');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function editCampaign(
+  campaignId: string,
+  name: string,
+  messageTemplate: string,
+  scheduledAt: string | null
+) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const [c] = await db.select().from(campaigns).where(
+      and(
+        eq(campaigns.id, campaignId),
+        eq(campaigns.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (!c) throw new Error('Campaign not found');
+    if (c.status === 'COMPLETED' || c.status === 'PROCESSING') {
+      throw new Error('Cannot edit a running or completed campaign. Pause or stop it first.');
+    }
+
+    const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : new Date();
+
+    // 1. Update Campaign
+    await db.update(campaigns)
+      .set({
+        name,
+        messageTemplate,
+        scheduledAt: scheduledAt ? parsedScheduledAt : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(campaigns.id, campaignId));
+
+    // 2. Delete existing pending queue jobs for this campaign
+    await db.delete(queueJobs).where(
+      and(
+        eq(queueJobs.campaignId, campaignId),
+        eq(queueJobs.status, 'PENDING')
+      )
+    );
+
+    // 3. Regenerate queue jobs
+    let targetContacts: any[] = [];
+    if (c.targetTagId) {
+      targetContacts = await db.select({
+        id: contacts.id,
+        name: contacts.name,
+        pushName: contacts.pushName,
+        whatsappId: contacts.whatsappId,
+      })
+      .from(contactTags)
+      .innerJoin(contacts, eq(contactTags.contactId, contacts.id))
+      .where(
+        and(
+          eq(contactTags.tagId, c.targetTagId),
+          eq(contacts.organizationId, orgId)
+        )
+      );
+    } else {
+      targetContacts = await db.select().from(contacts).where(eq(contacts.organizationId, orgId));
+    }
+
+    if (targetContacts.length > 0) {
+      await db.transaction(async (tx) => {
+        for (const contact of targetContacts) {
+          const compiledMsg = compileMessage(messageTemplate, contact);
+
+          await tx.insert(queueJobs).values({
+            organizationId: orgId,
+            campaignId: campaignId,
+            sessionId: c.sessionId,
+            recipientWhatsappId: contact.whatsappId,
+            message: compiledMsg,
+            status: 'PENDING',
+            scheduledFor: parsedScheduledAt,
+          });
+        }
+      });
+    }
+
+    revalidatePath('/dashboard/campaigns');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
