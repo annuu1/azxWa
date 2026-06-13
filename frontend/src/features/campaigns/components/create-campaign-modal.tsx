@@ -5,7 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { X, RefreshCw, Megaphone, Calendar, HelpCircle, Eye } from 'lucide-react';
-import { createCampaign } from '../actions/campaign-actions';
+import { createCampaign, getTemplatesList } from '../actions/campaign-actions';
 
 interface CreateCampaignModalProps {
   onClose: () => void;
@@ -29,6 +29,43 @@ export default function CreateCampaignModal({
   const [sessionId, setSessionId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [sendType, setSendType] = useState<'immediate' | 'scheduled'>('immediate');
+  const [mediaUrl, setMediaUrl] = useState('');
+
+  // Antiban & Delay State
+  const [minDelay, setMinDelay] = useState(5);
+  const [maxDelay, setMaxDelay] = useState(20);
+  const [minBatchDelay, setMinBatchDelay] = useState(30);
+  const [maxBatchDelay, setMaxBatchDelay] = useState(120);
+  const [minBatchSize, setMinBatchSize] = useState(35);
+  const [maxBatchSize, setMaxBatchSize] = useState(50);
+
+  // Templates State
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await getTemplatesList();
+        if (res.success) {
+          setTemplates(res.templates || []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const found = templates.find(t => t.id === templateId);
+    if (found) {
+      setName(found.name);
+      setMessageTemplate(found.content);
+    }
+  };
 
   // Live compile mockup
   const [compiledPreview, setCompiledPreview] = useState('');
@@ -65,12 +102,38 @@ export default function CreateCampaignModal({
       return;
     }
 
+    if (minDelay > maxDelay) {
+      alert('Message min delay cannot be greater than max delay.');
+      return;
+    }
+    if (minBatchDelay > maxBatchDelay) {
+      alert('Batch min delay cannot be greater than max delay.');
+      return;
+    }
+    if (minBatchSize > maxBatchSize) {
+      alert('Min batch size cannot be greater than max size.');
+      return;
+    }
+
     setLoading(true);
     try {
       const targetTag = targetTagId === 'all' ? null : targetTagId;
       const parsedSchedule = sendType === 'scheduled' && scheduledAt ? scheduledAt : null;
 
-      const result = await createCampaign(name, messageTemplate, targetTag, sessionId, parsedSchedule);
+      const result = await createCampaign(
+        name,
+        messageTemplate,
+        targetTag,
+        sessionId,
+        parsedSchedule,
+        minDelay,
+        maxDelay,
+        minBatchDelay,
+        maxBatchDelay,
+        minBatchSize,
+        maxBatchSize,
+        mediaUrl || null
+      );
       if (result.success) {
         onSuccess();
       } else {
@@ -104,6 +167,23 @@ export default function CreateCampaignModal({
                 <X className="w-4 h-4" />
               </Button>
             </div>
+
+            {/* Template Selector */}
+            {templates.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-600">Load Saved Template (Optional)</label>
+                <select
+                  className="w-full bg-white border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedTemplateId}
+                  onChange={(e) => handleTemplateSelect(e.target.value)}
+                >
+                  <option value="">-- Select a Template --</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Campaign Name */}
             <div className="space-y-1">
@@ -148,6 +228,20 @@ export default function CreateCampaignModal({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Media URL (Optional) */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600">Media URL (Optional - Image or Video link)</label>
+              <Input 
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="https://example.com/image-or-video.jpg"
+                className="bg-white"
+              />
+              <span className="text-[10px] text-gray-400 block leading-normal mt-0.5">
+                Provide a direct public link. The Message Template below will be sent as its caption.
+              </span>
             </div>
 
             {/* Message Template Textarea */}
@@ -224,6 +318,90 @@ export default function CreateCampaignModal({
                   />
                 </div>
               )}
+            </div>
+              {/* Antiban & Rate Limiting Settings */}
+            <div className="border border-blue-100 bg-blue-50/20 rounded-xl p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider">Antiban & Speed Controls</h3>
+                <span className="text-[10px] text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded font-medium">Safe Mode Enabled</span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4 text-xs">
+                {/* Message Delays */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-gray-750 block">Message Delay (sec)</label>
+                  <div className="flex items-center space-x-1">
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={minDelay}
+                      onChange={(e) => setMinDelay(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                    <span className="text-gray-400">-</span>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={maxDelay}
+                      onChange={(e) => setMaxDelay(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Batch Size */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-gray-750 block">Contacts per Batch</label>
+                  <div className="flex items-center space-x-1">
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={minBatchSize}
+                      onChange={(e) => setMinBatchSize(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                    <span className="text-gray-400">-</span>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={maxBatchSize}
+                      onChange={(e) => setMaxBatchSize(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Batch Delay */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-gray-750 block">Batch Delay (sec)</label>
+                  <div className="flex items-center space-x-1">
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={minBatchDelay}
+                      onChange={(e) => setMinBatchDelay(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                    <span className="text-gray-400">-</span>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      className="bg-white text-center h-8 px-1"
+                      value={maxBatchDelay}
+                      onChange={(e) => setMaxBatchDelay(parseInt(e.target.value) || 1)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
+                🛡️ Delay ranges prevent message pattern detection. Composing/Typing indicators will simulate human behavior (1.5 - 4s) before each send.
+              </p>
             </div>
           </div>
 

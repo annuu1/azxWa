@@ -1,6 +1,6 @@
 import { db } from '@/shared/database';
 import { queueJobs, campaigns, activities, contacts } from '@/shared/database/schema';
-import { sendMessage as engineSendMessage } from '@/features/whatsapp/lib/whatsapp-service';
+import { sendMessage as engineSendMessage, sendStateTyping, clearState, sendMediaMessage } from '@/features/whatsapp/lib/whatsapp-service';
 import { eq, and, lte, sql } from 'drizzle-orm';
 
 let workerRunning = false;
@@ -9,12 +9,15 @@ export function startQueueWorker() {
   if (typeof window !== 'undefined') return;
 
   const globalRef = globalThis as any;
-  if (globalRef.queueWorkerStarted) return;
-  globalRef.queueWorkerStarted = true;
+  
+  if (globalRef.queueWorkerInterval) {
+    clearInterval(globalRef.queueWorkerInterval);
+    console.log('🔄 Restarting Broadcast Queue Worker (Hot Reload)...');
+  } else {
+    console.log('🚀 Broadcast Queue Worker Initialized.');
+  }
 
-  console.log('🚀 Broadcast Queue Worker Initialized.');
-
-  setInterval(async () => {
+  globalRef.queueWorkerInterval = setInterval(async () => {
     if (workerRunning) return;
     workerRunning = true;
 
@@ -26,6 +29,41 @@ export function startQueueWorker() {
       workerRunning = false;
     }
   }, 10000); // Check every 10 seconds
+}
+
+async function updateCampaignStatus(campaignId: string) {
+  try {
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+    if (!campaign) return;
+    
+    if (campaign.status === 'PENDING' || campaign.status === 'PROCESSING') {
+      const remainingJobs = await db.select({
+        count: sql<number>`count(*)`
+      })
+      .from(queueJobs)
+      .where(
+        and(
+          eq(queueJobs.campaignId, campaignId),
+          sql`${queueJobs.status} IN ('PENDING', 'PROCESSING')`
+        )
+      );
+      
+      const count = remainingJobs[0]?.count || 0;
+      if (count === 0) {
+        await db.update(campaigns)
+          .set({ status: 'COMPLETED', updatedAt: new Date() })
+          .where(eq(campaigns.id, campaignId));
+        console.log(`[Queue Worker] Campaign ${campaignId} marked as COMPLETED.`);
+      } else if (campaign.status === 'PENDING') {
+        await db.update(campaigns)
+          .set({ status: 'PROCESSING', updatedAt: new Date() })
+          .where(eq(campaigns.id, campaignId));
+        console.log(`[Queue Worker] Campaign ${campaignId} marked as PROCESSING.`);
+      }
+    }
+  } catch (err) {
+    console.error(`[Queue Worker] Failed to update campaign status for ${campaignId}:`, err);
+  }
 }
 
 async function processQueueJobs() {
@@ -58,11 +96,34 @@ async function processQueueJobs() {
       .set({ status: 'PROCESSING', updatedAt: new Date() })
       .where(eq(queueJobs.id, job.id));
 
+    if (job.campaignId) {
+      await updateCampaignStatus(job.campaignId);
+    }
+
     try {
+      // Simulate typing state (Antiban presence check)
+      try {
+        console.log(`[Queue Worker] Simulating composing state for ${job.recipientWhatsappId}...`);
+        await sendStateTyping(job.sessionId, job.recipientWhatsappId);
+        
+        // Wait for a random composing time (e.g. 1.5 - 4 seconds) to look natural
+        const typingDelay = Math.floor(Math.random() * 2500) + 1500;
+        await new Promise((resolve) => setTimeout(resolve, typingDelay));
+        
+        console.log(`[Queue Worker] Clearing composing state for ${job.recipientWhatsappId}...`);
+        await clearState(job.sessionId, job.recipientWhatsappId);
+      } catch (typingErr: any) {
+        console.warn(`[Queue Worker] Composing simulation skipped/failed:`, typingErr.message);
+      }
+
       console.log(`[Queue Worker] Sending message to ${job.recipientWhatsappId} via session ${job.sessionId}...`);
       
       // Call WhatsApp Engine
-      await engineSendMessage(job.sessionId, job.recipientWhatsappId, job.message);
+      if (job.mediaUrl) {
+        await sendMediaMessage(job.sessionId, job.recipientWhatsappId, job.mediaUrl, job.message || undefined);
+      } else {
+        await engineSendMessage(job.sessionId, job.recipientWhatsappId, job.message);
+      }
 
       // Mark as sent
       await db.update(queueJobs)
@@ -102,6 +163,10 @@ async function processQueueJobs() {
           updatedAt: new Date(),
         })
         .where(eq(queueJobs.id, job.id));
+    } finally {
+      if (job.campaignId) {
+        await updateCampaignStatus(job.campaignId);
+      }
     }
   }
 }

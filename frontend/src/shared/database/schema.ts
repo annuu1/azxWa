@@ -112,6 +112,13 @@ export const campaigns = sqliteTable('campaigns', {
   sessionId: text('session_id').notNull(),
   scheduledAt: integer('scheduled_at', { mode: 'timestamp' }),
   status: text('status', { enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'PAUSED', 'CANCELLED'] }).default('PENDING').notNull(),
+  minDelay: integer('min_delay').default(5).notNull(),
+  maxDelay: integer('max_delay').default(20).notNull(),
+  minBatchDelay: integer('min_batch_delay').default(30).notNull(),
+  maxBatchDelay: integer('max_batch_delay').default(120).notNull(),
+  minBatchSize: integer('min_batch_size').default(35).notNull(),
+  maxBatchSize: integer('max_batch_size').default(50).notNull(),
+  mediaUrl: text('media_url'),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
@@ -128,6 +135,16 @@ export const queueJobs = sqliteTable('queue_jobs', {
   maxAttempts: integer('max_attempts').default(3).notNull(),
   error: text('error'),
   scheduledFor: integer('scheduled_for', { mode: 'timestamp' }).$defaultFn(() => new Date()).notNull(),
+  mediaUrl: text('media_url'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const templates = sqliteTable('templates', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  content: text('content').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

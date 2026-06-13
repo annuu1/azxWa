@@ -108,3 +108,64 @@ export async function sendMessage(sessionId: string, chatId: string, text: strin
   });
 }
 
+export async function sendStateTyping(sessionId: string, chatId: string) {
+  return await fetchEngine(`/chat/sendStateTyping/${sessionId}`, {
+    method: 'POST',
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function clearState(sessionId: string, chatId: string) {
+  return await fetchEngine(`/chat/clearState/${sessionId}`, {
+    method: 'POST',
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function sendMediaMessage(sessionId: string, chatId: string, mediaUrl: string, caption?: string) {
+  try {
+    const response = await fetch(mediaUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to download media file. Status: ${response.status} ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html') || contentType.includes('application/json')) {
+      throw new Error(`The link provided is a web page or API response, not a direct media file link (Content-Type: ${contentType}). Please provide a direct link ending with .jpg, .png, .mp4, etc.`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString('base64');
+    
+    // Determine filename
+    const urlParts = mediaUrl.split('/');
+    let filename = urlParts[urlParts.length - 1]?.split('?')[0] || 'file';
+    if (!filename.includes('.')) {
+      const ext = contentType.split('/')[1]?.split('+')[0] || 'bin';
+      filename = `${filename}.${ext}`;
+    }
+
+    return await fetchEngine(`/client/sendMessage/${sessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        contentType: 'MessageMedia',
+        content: {
+          mimetype: contentType || 'image/jpeg',
+          data: base64Data,
+          filename: filename,
+        },
+        options: caption ? { caption } : {},
+      }),
+    });
+  } catch (err: any) {
+    console.error('Error in sendMediaMessage:', err);
+    throw new Error(`Media sending failed: ${err.message}`);
+  }
+}
+

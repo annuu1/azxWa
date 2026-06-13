@@ -5,7 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { X, RefreshCw, CheckCircle, AlertCircle, Clock, Pause, Trash2, Edit, Save, Calendar } from 'lucide-react';
-import { getCampaignDetails, pauseCampaign, resumeCampaign, cancelCampaign, editCampaign } from '../actions/campaign-actions';
+import { getCampaignDetails, pauseCampaign, resumeCampaign, cancelCampaign, editCampaign, restartCampaign } from '../actions/campaign-actions';
 
 interface CampaignDetailsModalProps {
   campaignId: string;
@@ -25,6 +25,15 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
   const [editSendType, setEditSendType] = useState<'immediate' | 'scheduled'>('immediate');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Edit Antiban & Delay States
+  const [editMinDelay, setEditMinDelay] = useState(5);
+  const [editMaxDelay, setEditMaxDelay] = useState(20);
+  const [editMinBatchDelay, setEditMinBatchDelay] = useState(30);
+  const [editMaxBatchDelay, setEditMaxBatchDelay] = useState(120);
+  const [editMinBatchSize, setEditMinBatchSize] = useState(35);
+  const [editMaxBatchSize, setEditMaxBatchSize] = useState(50);
+  const [editMediaUrl, setEditMediaUrl] = useState('');
+
   const fetchDetails = async () => {
     setLoading(true);
     try {
@@ -33,6 +42,15 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
         setData(result);
         setEditName(result.campaign.name);
         setEditTemplate(result.campaign.messageTemplate);
+        
+        setEditMinDelay(result.campaign.minDelay ?? 5);
+        setEditMaxDelay(result.campaign.maxDelay ?? 20);
+        setEditMinBatchDelay(result.campaign.minBatchDelay ?? 30);
+        setEditMaxBatchDelay(result.campaign.maxBatchDelay ?? 120);
+        setEditMinBatchSize(result.campaign.minBatchSize ?? 35);
+        setEditMaxBatchSize(result.campaign.maxBatchSize ?? 50);
+        setEditMediaUrl(result.campaign.mediaUrl ?? '');
+
         if (result.campaign.scheduledAt) {
           // Format Date to YYYY-MM-DDTHH:MM for datetime-local input
           const d = new Date(result.campaign.scheduledAt);
@@ -92,12 +110,50 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
     }
   };
 
+  const handleRestart = async () => {
+    if (!confirm('Restart/Resend this campaign? All message statuses will be reset to PENDING and resent.')) return;
+    try {
+      const res = await restartCampaign(campaignId);
+      if (res.success) {
+        await fetchDetails();
+        onUpdate();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editMinDelay > editMaxDelay) {
+      alert('Message min delay cannot be greater than max delay.');
+      return;
+    }
+    if (editMinBatchDelay > editMaxBatchDelay) {
+      alert('Batch min delay cannot be greater than max delay.');
+      return;
+    }
+    if (editMinBatchSize > editMaxBatchSize) {
+      alert('Min batch size cannot be greater than max size.');
+      return;
+    }
+
     setSavingEdit(true);
     try {
       const parsedSchedule = editSendType === 'scheduled' && editScheduledAt ? editScheduledAt : null;
-      const res = await editCampaign(campaignId, editName, editTemplate, parsedSchedule);
+      const res = await editCampaign(
+        campaignId, 
+        editName, 
+        editTemplate, 
+        parsedSchedule,
+        editMinDelay,
+        editMaxDelay,
+        editMinBatchDelay,
+        editMaxBatchDelay,
+        editMinBatchSize,
+        editMaxBatchSize,
+        editMediaUrl || null
+      );
       if (res.success) {
         setIsEditing(false);
         await fetchDetails();
@@ -164,6 +220,20 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
                 />
               </div>
 
+              {/* Media URL (Optional) */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-600">Media URL (Optional - Image or Video link)</label>
+                <Input 
+                  value={editMediaUrl}
+                  onChange={(e) => setEditMediaUrl(e.target.value)}
+                  placeholder="https://example.com/image-or-video.jpg"
+                  className="bg-white"
+                />
+                <span className="text-[10px] text-gray-400 block leading-normal mt-0.5">
+                  Provide a direct public link. The Message Template below will be sent as its caption.
+                </span>
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-600">Message Template</label>
                 <textarea
@@ -221,6 +291,91 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
                     />
                   </div>
                 )}
+                
+                {/* Antiban & Rate Limiting Settings */}
+                <div className="border border-blue-100 bg-blue-50/20 rounded-xl p-4 space-y-4 mt-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider">Antiban & Speed Controls</h3>
+                    <span className="text-[10px] text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded font-medium">Safe Mode Enabled</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 text-xs">
+                    {/* Message Delays */}
+                    <div className="space-y-1">
+                      <label className="font-semibold text-gray-75 block">Message Delay (sec)</label>
+                      <div className="flex items-center space-x-1">
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMinDelay}
+                          onChange={(e) => setEditMinDelay(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                        <span className="text-gray-400">-</span>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMaxDelay}
+                          onChange={(e) => setEditMaxDelay(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Batch Size */}
+                    <div className="space-y-1">
+                      <label className="font-semibold text-gray-75 block">Contacts per Batch</label>
+                      <div className="flex items-center space-x-1">
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMinBatchSize}
+                          onChange={(e) => setEditMinBatchSize(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                        <span className="text-gray-400">-</span>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMaxBatchSize}
+                          onChange={(e) => setEditMaxBatchSize(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Batch Delay */}
+                    <div className="space-y-1">
+                      <label className="font-semibold text-gray-75 block">Batch Delay (sec)</label>
+                      <div className="flex items-center space-x-1">
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMinBatchDelay}
+                          onChange={(e) => setEditMinBatchDelay(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                        <span className="text-gray-400">-</span>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          className="bg-white text-center h-8 px-1"
+                          value={editMaxBatchDelay}
+                          onChange={(e) => setEditMaxBatchDelay(parseInt(e.target.value) || 1)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
+                    🛡️ Delay ranges prevent message pattern detection. Composing/Typing indicators will simulate human behavior (1.5 - 4s) before each send.
+                  </p>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="pt-3 border-t bg-gray-50/50 flex justify-end space-x-2">
@@ -237,7 +392,7 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
             <CardContent className="py-6 space-y-6 overflow-y-auto flex-1">
               {/* Campaign Control Actions Toolbar */}
               <div className="flex flex-wrap gap-2 pb-4 border-b border-gray-100">
-                {campaign.status === 'PENDING' && (
+                {(campaign.status === 'PENDING' || campaign.status === 'PROCESSING') && (
                   <Button 
                     size="sm" 
                     onClick={handlePause} 
@@ -257,14 +412,22 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
                   </Button>
                 )}
 
-                {(campaign.status === 'PENDING' || campaign.status === 'PAUSED') && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setIsEditing(true)} 
+                  className="text-xs text-gray-700 border-gray-200"
+                >
+                  <Edit className="w-3.5 h-3.5 mr-1" /> Edit Template
+                </Button>
+
+                {(campaign.status === 'COMPLETED' || campaign.status === 'FAILED' || campaign.status === 'CANCELLED') && (
                   <Button 
                     size="sm" 
-                    variant="outline"
-                    onClick={() => setIsEditing(true)} 
-                    className="text-xs text-gray-700 border-gray-200"
+                    onClick={handleRestart} 
+                    className="bg-blue-600 hover:bg-blue-700 text-xs text-white"
                   >
-                    <Edit className="w-3.5 h-3.5 mr-1" /> Edit Template
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" /> Resend Campaign
                   </Button>
                 )}
 
@@ -311,6 +474,18 @@ export default function CampaignDetailsModal({ campaignId, onClose, onUpdate }: 
                   <span className="text-lg font-bold text-red-700">{failed}</span>
                 </div>
               </div>
+
+              {/* Media URL Details */}
+              {campaign.mediaUrl && (
+                <div className="space-y-1">
+                  <span className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Attached Media URL</span>
+                  <div className="bg-gray-55 border rounded-lg p-2.5 text-xs text-blue-600 truncate font-mono bg-blue-50/10 border-blue-100/50">
+                    <a href={campaign.mediaUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      🔗 {campaign.mediaUrl}
+                    </a>
+                  </div>
+                </div>
+              )}
 
               {/* Template Details */}
               <div className="space-y-1">
