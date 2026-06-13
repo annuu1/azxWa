@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle } from 'lucide-react';
+import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw } from 'lucide-react';
 import { getAISettingsData, saveAISettings } from '../actions/ai-actions';
 
 export default function AISettingsPanel() {
