@@ -102,3 +102,32 @@ export const activities = sqliteTable('activities', {
   userId: text('user_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
+
+export const campaigns = sqliteTable('campaigns', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  messageTemplate: text('message_template').notNull(),
+  targetTagId: text('target_tag_id').references(() => tags.id),
+  sessionId: text('session_id').notNull(),
+  scheduledAt: integer('scheduled_at', { mode: 'timestamp' }),
+  status: text('status', { enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'] }).default('PENDING').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const queueJobs = sqliteTable('queue_jobs', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  campaignId: text('campaign_id').references(() => campaigns.id),
+  sessionId: text('session_id').notNull(),
+  recipientWhatsappId: text('recipient_whatsapp_id').notNull(),
+  message: text('message').notNull(),
+  status: text('status', { enum: ['PENDING', 'PROCESSING', 'SENT', 'FAILED'] }).default('PENDING').notNull(),
+  attempts: integer('attempts').default(0).notNull(),
+  maxAttempts: integer('max_attempts').default(3).notNull(),
+  error: text('error'),
+  scheduledFor: integer('scheduled_for', { mode: 'timestamp' }).$defaultFn(() => new Date()).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
