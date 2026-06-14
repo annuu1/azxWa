@@ -13,6 +13,7 @@ import {
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { revalidatePath } from 'next/cache';
 import { eq, and, asc } from 'drizzle-orm';
+import { getSessions as engineGetSessions } from '@/features/whatsapp/lib/whatsapp-service';
 
 function cleanPhoneNumber(phone: string): string {
   const digits = phone.toString().replace(/\D/g, '');
@@ -82,16 +83,25 @@ export async function getConnectedSessionsAction() {
   const orgId = userSession.organizationId as string;
 
   try {
-    const sessions = await db
+    const orgSessions = await db
       .select()
       .from(whatsappSessions)
-      .where(
-        and(
-          eq(whatsappSessions.organizationId, orgId),
-          eq(whatsappSessions.status, 'CONNECTED')
-        )
-      );
-    return { success: true, sessions };
+      .where(eq(whatsappSessions.organizationId, orgId));
+
+    const engineSessions = await engineGetSessions();
+
+    const connectedSessions = orgSessions
+      .map(s => {
+        const es = engineSessions.find((e: any) => e.id === s.sessionId);
+        return {
+          ...s,
+          state: es?.state || 'DISCONNECTED',
+          ready: es?.ready || false,
+        };
+      })
+      .filter(s => s.ready || s.state === 'CONNECTED');
+
+    return { success: true, sessions: connectedSessions };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
