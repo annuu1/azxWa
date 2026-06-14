@@ -39,6 +39,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Message skipped (empty body or contact ID)' });
     }
 
+    // Ignore non-individual JIDs (group chats, broadcast lists, newsletters, and status updates)
+    const isIndividualChat = contactWhatsappId.endsWith('@c.us') || contactWhatsappId.endsWith('@lid');
+    if (!isIndividualChat) {
+      return NextResponse.json({ success: true, message: `Ignored non-individual JID: ${contactWhatsappId}` });
+    }
+
     // Double trigger prevention:
     // wwebjs-api fires 'message' (dataType: 'message') for incoming messages,
     // and also 'message_create' (dataType: 'message_create') for both incoming and outgoing messages.
@@ -222,16 +228,16 @@ export async function POST(req: NextRequest) {
     if (aiResponse) {
       console.log(`[Webhook] Sending AI Auto-Reply to ${contactWhatsappId}: "${aiResponse.substring(0, 45)}..."`);
 
-      // 10. Send message via WhatsApp Engine
-      await engineSendMessage(sessionId, contactWhatsappId, aiResponse);
-
-      // 11. Log AI Outgoing message activity in CRM timeline
+      // 10. Log AI Outgoing message activity in CRM timeline first (to prevent race condition where message_create webhook fires before activity is stored)
       await db.insert(activities).values({
         organizationId: orgId,
         contactId: contact.id,
         type: 'MESSAGE_SENT',
         description: `AI Auto-reply: "${aiResponse.substring(0, 60)}${aiResponse.length > 60 ? '...' : ''}"`,
       });
+
+      // 11. Send message via WhatsApp Engine
+      await engineSendMessage(sessionId, contactWhatsappId, aiResponse);
     }
 
     return NextResponse.json({ success: true });
