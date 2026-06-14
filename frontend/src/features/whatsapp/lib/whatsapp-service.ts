@@ -4,14 +4,14 @@ export interface WhatsAppSession {
   ready: boolean;
 }
 
-const API_KEY = process.env.API_KEY || '';
-const ENGINE_URL = process.env.WHATSAPP_ENGINE_URL || 'http://localhost:3000';
-
 async function fetchEngine(path: string, options: RequestInit = {}) {
-  const response = await fetch(`${ENGINE_URL}${path}`, {
+  const apiKey = process.env.API_KEY || '';
+  const engineUrl = process.env.WHATSAPP_ENGINE_URL || 'http://localhost:3000';
+
+  const response = await fetch(`${engineUrl}${path}`, {
     ...options,
     headers: {
-      'x-api-key': API_KEY,
+      'x-api-key': apiKey,
       'Content-Type': 'application/json',
       ...options.headers,
     },
