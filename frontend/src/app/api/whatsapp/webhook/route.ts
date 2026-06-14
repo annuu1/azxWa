@@ -39,6 +39,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Message skipped (empty body or contact ID)' });
     }
 
+    // Double trigger prevention:
+    // wwebjs-api fires 'message' (dataType: 'message') for incoming messages,
+    // and also 'message_create' (dataType: 'message_create') for both incoming and outgoing messages.
+    // To avoid double AI replies:
+    // - We handle incoming messages ONLY on the 'message' event.
+    // - We handle outgoing messages ONLY on 'message_create' when fromMe is true (for human handoff).
+    if (dataType === 'message_create' && !fromMe) {
+      return NextResponse.json({ success: true, message: 'Incoming message ignored on message_create to prevent double reply' });
+    }
+
     // 1. Resolve WhatsApp session to find Organization ID
     let [session] = await db
       .select()
