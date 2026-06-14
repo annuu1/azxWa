@@ -8,11 +8,12 @@ import {
   whatsappSessions, 
   activities,
   pipelines,
-  pipelineStages
+  pipelineStages,
+  campaigns
 } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { revalidatePath } from 'next/cache';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, desc, sql, like } from 'drizzle-orm';
 import { getSessions as engineGetSessions } from '@/features/whatsapp/lib/whatsapp-service';
 
 function cleanPhoneNumber(phone: string): string {
@@ -111,6 +112,7 @@ export async function getConnectedSessionsAction() {
  * Queue bulk messages with staggered delays and optional CRM saving
  */
 export async function queueBulkMessagesAction(
+  broadcastName: string,
   recipients: { phone: string; name?: string; customVars?: Record<string, string> }[],
   messageTemplate: string,
   sessionId: string,
@@ -130,6 +132,20 @@ export async function queueBulkMessagesAction(
     let queuedCount = 0;
     
     await db.transaction(async (tx) => {
+      // 1. Create a Campaign record specifically for this Message Center broadcast
+      const [campaign] = await tx
+        .insert(campaigns)
+        .values({
+          organizationId: orgId,
+          name: `Message Center: ${broadcastName || 'Broadcast'}`,
+          messageTemplate,
+          sessionId,
+          status: 'PENDING',
+          minDelay,
+          maxDelay,
+        })
+        .returning();
+
       let currentScheduledTime = new Date();
 
       for (let i = 0; i < recipients.length; i++) {
@@ -141,10 +157,9 @@ export async function queueBulkMessagesAction(
         const name = item.name || rawPhone;
         const displayPhone = whatsappId.split('@')[0];
 
-        // 1. Optional CRM Save
+        // 2. Optional CRM Save
         let contactId: string | null = null;
         if (saveToCRM) {
-          // Check if contact already exists
           const [existingContact] = await tx
             .select()
             .from(contacts)
@@ -172,18 +187,19 @@ export async function queueBulkMessagesAction(
           }
         }
 
-        // 2. Stagger delay
+        // 3. Stagger delay
         if (i > 0) {
           const delaySec = getRandomInt(minDelay, maxDelay);
           currentScheduledTime = new Date(currentScheduledTime.getTime() + delaySec * 1000);
         }
 
-        // 3. Compile template
+        // 4. Compile template
         const compiledMsg = compileMessage(messageTemplate, name, displayPhone, item.customVars);
 
-        // 4. Insert Queue Job
+        // 5. Insert Queue Job
         await tx.insert(queueJobs).values({
           organizationId: orgId,
+          campaignId: campaign.id,
           sessionId,
           recipientWhatsappId: whatsappId,
           message: compiledMsg,
@@ -195,8 +211,137 @@ export async function queueBulkMessagesAction(
       }
     });
 
-    revalidatePath('/dashboard/campaigns');
+    revalidatePath('/dashboard/message-center');
     return { success: true, queuedCount };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetch all Message Center Broadcasts
+ */
+export async function getMessageCenterBroadcastsAction() {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const list = await db
+      .select()
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.organizationId, orgId),
+          like(campaigns.name, 'Message Center:%')
+        )
+      )
+      .orderBy(desc(campaigns.createdAt));
+
+    // Fetch stats for each campaign
+    const broadcasts = await Promise.all(
+      list.map(async (c) => {
+        const stats = await db
+          .select({
+            total: sql<number>`count(*)`,
+            pending: sql<number>`sum(case when status = 'PENDING' then 1 else 0 end)`,
+            processing: sql<number>`sum(case when status = 'PROCESSING' then 1 else 0 end)`,
+            sent: sql<number>`sum(case when status = 'SENT' then 1 else 0 end)`,
+            failed: sql<number>`sum(case when status = 'FAILED' then 1 else 0 end)`,
+          })
+          .from(queueJobs)
+          .where(eq(queueJobs.campaignId, c.id));
+
+        return {
+          ...c,
+          name: c.name.replace('Message Center: ', ''),
+          stats: stats[0] || { total: 0, pending: 0, processing: 0, sent: 0, failed: 0 },
+        };
+      })
+    );
+
+    return { success: true, broadcasts };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetch detailed stats and queue logs for a single Message Center campaign
+ */
+export async function getBroadcastProgressAction(campaignId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const [campaign] = await db
+      .select()
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.organizationId, orgId)
+        )
+      )
+      .limit(1);
+
+    if (!campaign) throw new Error('Broadcast not found.');
+
+    const jobs = await db
+      .select()
+      .from(queueJobs)
+      .where(eq(queueJobs.campaignId, campaignId))
+      .orderBy(queueJobs.scheduledFor);
+
+    const stats = await db
+      .select({
+        total: sql<number>`count(*)`,
+        pending: sql<number>`sum(case when status = 'PENDING' then 1 else 0 end)`,
+        processing: sql<number>`sum(case when status = 'PROCESSING' then 1 else 0 end)`,
+        sent: sql<number>`sum(case when status = 'SENT' then 1 else 0 end)`,
+        failed: sql<number>`sum(case when status = 'FAILED' then 1 else 0 end)`,
+      })
+      .from(queueJobs)
+      .where(eq(queueJobs.campaignId, campaignId));
+
+    return { 
+      success: true, 
+      campaign: {
+        ...campaign,
+        name: campaign.name.replace('Message Center: ', ''),
+      }, 
+      jobs, 
+      stats: stats[0] || { total: 0, pending: 0, processing: 0, sent: 0, failed: 0 } 
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Pause or resume a Message Center bulk campaign
+ */
+export async function toggleBroadcastStatusAction(campaignId: string, pause: boolean) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const status = pause ? 'PAUSED' : 'PENDING';
+    
+    await db
+      .update(campaigns)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.organizationId, orgId)
+        )
+      );
+
+    revalidatePath('/dashboard/message-center');
+    return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
