@@ -10,13 +10,15 @@ import {
   Users, 
   Megaphone, 
   Settings,
-  BookOpen
+  BookOpen,
+  Send
 } from 'lucide-react';
 
 const navItems = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unified Inbox', href: '/dashboard/inbox', icon: MessageSquare },
   { name: 'WhatsApp Accounts', href: '/dashboard/whatsapp', icon: Smartphone },
+  { name: 'Message Center', href: '/dashboard/message-center', icon: Send },
   { name: 'CRM', href: '/dashboard/crm', icon: Users },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
   { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
