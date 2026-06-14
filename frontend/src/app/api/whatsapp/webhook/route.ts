@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/shared/database';
 import { whatsappSessions, contacts, activities, aiSettings } from '@/shared/database/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, gte, like } from 'drizzle-orm';
 import { generateAIResponse } from '@/features/ai/lib/ai-service';
 import { sendMessage as engineSendMessage, fetchMessages as engineFetchMessages } from '@/features/whatsapp/lib/whatsapp-service';
 
@@ -112,14 +112,60 @@ export async function POST(req: NextRequest) {
       console.log(`[Webhook] Created new CRM contact: ${contact.name} (${contactWhatsappId})`);
     }
 
-    // 3. Human Handoff: If the message is sent by me (outgoing manual message), deactivate the AI for that contact
+    // Duplicate message check: If the same incoming message JID has already logged an activity in the last 5 seconds, skip it to prevent double AI responses (e.g. from duplicate sessions/retries)
+    if (!fromMe) {
+      const messageDesc = `Incoming message: "${incomingMessage.substring(0, 60)}${incomingMessage.length > 60 ? '...' : ''}"`;
+      const fiveSecondsAgo = new Date(Date.now() - 5000);
+      const [recentActivity] = await db
+        .select()
+        .from(activities)
+        .where(
+          and(
+            eq(activities.contactId, contact.id),
+            eq(activities.type, 'MESSAGE_RECEIVED'),
+            eq(activities.description, messageDesc),
+            gte(activities.createdAt, fiveSecondsAgo)
+          )
+        )
+        .limit(1);
+
+      if (recentActivity) {
+        console.log(`[Webhook] Duplicate incoming message detected (already logged: "${messageDesc}"). Skipping.`);
+        return NextResponse.json({ success: true, message: 'Duplicate message skipped' });
+      }
+    }
+
+    // 3. Human Handoff: If the message is sent by me (outgoing message), deactivate the AI for that contact
+    // BUT only if it was a manual message (not an AI auto-reply).
     if (fromMe) {
+      // Check if we recently logged an AI auto-reply with this exact content
+      const cleanBody = incomingMessage.substring(0, 60);
+      const fiveSecondsAgo = new Date(Date.now() - 5000);
+      
+      const [recentAiSent] = await db
+        .select()
+        .from(activities)
+        .where(
+          and(
+            eq(activities.contactId, contact.id),
+            eq(activities.type, 'MESSAGE_SENT'),
+            like(activities.description, `AI Auto-reply: %${cleanBody}%`),
+            gte(activities.createdAt, fiveSecondsAgo)
+          )
+        )
+        .limit(1);
+
+      if (recentAiSent) {
+        console.log(`[Webhook] AI auto-reply event detected for contact "${contactWhatsappId}". Keeping AI enabled.`);
+        return NextResponse.json({ success: true, message: 'AI auto-reply event ignored' });
+      }
+
       if (contact.aiEnabled) {
         await db
           .update(contacts)
           .set({ aiEnabled: false })
           .where(eq(contacts.id, contact.id));
-        console.log(`[Webhook] Outgoing manual message detected. Deactivated AI auto-reply for contact "${contactWhatsappId}"`);
+        console.log(`[Webhook] Outgoing manual message detected on device. Deactivated AI auto-reply for contact "${contactWhatsappId}"`);
       }
       return NextResponse.json({ success: true, message: 'Self-message processed (AI auto-reply disabled for contact)' });
     }
