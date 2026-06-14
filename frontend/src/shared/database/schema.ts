@@ -161,3 +161,23 @@ export const aiSettings = sqliteTable('ai_settings', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
+
+export const knowledgeSources = sqliteTable('knowledge_sources', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  type: text('type').default('FILE').notNull(), // 'FILE' | 'URL' | 'FAQ'
+  status: text('status').default('COMPLETED').notNull(), // 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const knowledgeChunks = sqliteTable('knowledge_chunks', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  sourceId: text('source_id').references(() => knowledgeSources.id, { onDelete: 'cascade' }).notNull(),
+  title: text('title'), // e.g. section title, page name, or FAQ question
+  content: text('content').notNull(), // chunk text or FAQ answer
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});

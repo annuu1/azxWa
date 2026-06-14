@@ -147,15 +147,15 @@ export async function toggleContactAI(contactId: string, aiEnabled: boolean) {
 /**
  * Helper to fetch last messages from the engine and format them for the AI service
  */
-async function fetchFormattedHistory(sessionId: string, chatId: string, limit = 15) {
+async function fetchFormattedHistory(sessionId: string, chatId: string, limit = 15): Promise<{ role: 'user' | 'model'; content: string }[]> {
   const messages = await engineFetchMessages(sessionId, chatId, limit);
   if (!messages || messages.length === 0) return [];
   
   return messages
     .filter((msg: any) => msg.body && msg.type === 'chat')
     .map((msg: any) => ({
-      role: msg.fromMe ? 'model' : 'user',
-      content: msg.body,
+      role: (msg.fromMe ? 'model' : 'user') as 'user' | 'model',
+      content: msg.body as string,
     }));
 }
 
@@ -287,7 +287,6 @@ export async function saveQualifiedLeadDetails(
         organizationId: orgId,
         contactId,
         status: 'NEW',
-        value: 0,
       }).returning();
     }
 

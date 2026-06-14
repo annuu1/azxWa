@@ -1,6 +1,7 @@
 import { db } from '@/shared/database';
 import { aiSettings } from '@/shared/database/schema';
 import { eq } from 'drizzle-orm';
+import { queryKnowledgeBase } from '@/features/knowledge-base/lib/kb-service';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -75,7 +76,19 @@ export async function generateAIResponse(
     return null;
   }
 
-  const systemPrompt = settings.systemPrompt;
+  // Retrieve knowledge base context if available
+  let kbContext = '';
+  try {
+    const chunks = await queryKnowledgeBase(organizationId, incomingMessage);
+    if (chunks && chunks.length > 0) {
+      kbContext = "\n\nUse the following context from the Knowledge Base/FAQs to answer the user's inquiry. If the information is not present in the context, answer based on your general knowledge but prefer the context if relevant:\n" +
+        chunks.map(c => `Source: ${c.title || 'FAQ/Document'}\nContent: ${c.content}`).join('\n---\n');
+    }
+  } catch (kbErr: any) {
+    console.error('[AI Service] KB retrieval error:', kbErr.message);
+  }
+
+  const systemPrompt = settings.systemPrompt + kbContext;
   const primaryProvider = settings.provider;
   let primaryModel = settings.model;
   let primaryApiKey = settings.apiKey || process.env.AI_API_KEY || '';
@@ -160,9 +173,33 @@ export async function generateSuggestedReply(
     .where(eq(aiSettings.organizationId, organizationId))
     .limit(1);
 
-  const systemPrompt = settings?.systemPrompt 
+  // Retrieve knowledge base context if available
+  let kbQuery = '';
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'user') {
+      kbQuery = history[i].content;
+      break;
+    }
+  }
+
+  let kbContext = '';
+  if (kbQuery) {
+    try {
+      const chunks = await queryKnowledgeBase(organizationId, kbQuery);
+      if (chunks && chunks.length > 0) {
+        kbContext = "\n\nUse the following context from the Knowledge Base/FAQs to answer the user's inquiry:\n" +
+          chunks.map(c => `Source: ${c.title || 'FAQ/Document'}\nContent: ${c.content}`).join('\n---\n');
+      }
+    } catch (kbErr: any) {
+      console.error('[AI Service] KB retrieval error:', kbErr.message);
+    }
+  }
+
+  const basePrompt = settings?.systemPrompt 
     ? `${settings.systemPrompt}\n\nINSTRUCTION: Suggest a suitable, professional next message or reply to the user. Keep it natural and ready-to-send.` 
     : 'You are a customer service assistant. Suggest a suitable next reply for the customer. Do not include quotes or meta text.';
+
+  const systemPrompt = basePrompt + kbContext;
   
   const provider = settings?.provider || 'groq';
   let model = settings?.model || (provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct');

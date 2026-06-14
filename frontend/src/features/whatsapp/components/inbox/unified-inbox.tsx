@@ -103,7 +103,7 @@ export default function UnifiedInbox({ sessionId }: { sessionId: string }) {
     try {
       const res = await getContactAIStatus(whatsappId);
       if (res.success) {
-        setAiEnabled(res.aiEnabled);
+        setAiEnabled(!!res.aiEnabled);
         setContactId(res.contactId || null);
       }
     } catch (err) {

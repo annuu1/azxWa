@@ -9,7 +9,8 @@ import {
   Smartphone, 
   Users, 
   Megaphone, 
-  Settings 
+  Settings,
+  BookOpen
 } from 'lucide-react';
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { name: 'WhatsApp Accounts', href: '/dashboard/whatsapp', icon: Smartphone },
   { name: 'CRM', href: '/dashboard/crm', icon: Users },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
+  { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
   { name: 'AI Settings', href: '/dashboard/ai', icon: Settings },
 ];
 
