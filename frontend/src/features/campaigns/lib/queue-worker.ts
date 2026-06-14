@@ -8,6 +8,16 @@ let workerRunning = false;
 export function startQueueWorker() {
   if (typeof window !== 'undefined') return;
 
+  if (!process.env.API_KEY) {
+    console.log('⚠️ Broadcast Queue Worker skipped: API_KEY is not defined.');
+    return;
+  }
+
+  if (process.env.CLI_MODE === 'true') {
+    console.log('⚠️ Broadcast Queue Worker skipped: Running in CLI mode.');
+    return;
+  }
+
   const globalRef = globalThis as any;
   
   if (globalRef.queueWorkerInterval) {
