@@ -118,7 +118,8 @@ export async function queueBulkMessagesAction(
   sessionId: string,
   saveToCRM: boolean,
   minDelay = 5,
-  maxDelay = 15
+  maxDelay = 15,
+  mediaUrl: string | null = null
 ) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -143,6 +144,7 @@ export async function queueBulkMessagesAction(
           status: 'PENDING',
           minDelay,
           maxDelay,
+          mediaUrl: mediaUrl || null,
         })
         .returning();
 
@@ -203,6 +205,7 @@ export async function queueBulkMessagesAction(
           sessionId,
           recipientWhatsappId: whatsappId,
           message: compiledMsg,
+          mediaUrl: mediaUrl || null,
           status: 'PENDING',
           scheduledFor: new Date(currentScheduledTime.getTime()),
         });

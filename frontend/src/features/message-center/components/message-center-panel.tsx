@@ -51,6 +51,7 @@ export default function MessageCenterPanel() {
   const [rawText, setRawText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [messageTemplate, setMessageTemplate] = useState('Hello {{name}},\n\nThis is a broadcast message.');
+  const [mediaUrl, setMediaUrl] = useState('');
   
   // Options
   const [saveToCRM, setSaveToCRM] = useState(false);
@@ -338,7 +339,8 @@ export default function MessageCenterPanel() {
         selectedSession,
         saveToCRM,
         Number(minDelay),
-        Number(maxDelay)
+        Number(maxDelay),
+        mediaUrl || null
       );
 
       if (res.success) {
@@ -347,6 +349,7 @@ export default function MessageCenterPanel() {
         setBroadcastName('');
         setFile(null);
         setRecipients([]);
+        setMediaUrl('');
         
         // Reload list and select new broadcast
         await loadBroadcasts();
@@ -632,6 +635,21 @@ export default function MessageCenterPanel() {
                 />
               </div>
 
+              {/* Media URL (Optional) */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase block">Media URL (Optional - Image or Video link)</label>
+                <Input
+                  type="text"
+                  placeholder="e.g., https://example.com/image.jpg"
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  className="bg-white text-sm"
+                />
+                <span className="text-[10px] text-gray-400 block leading-normal">
+                  Provide a direct link to an image or video to attach to this broadcast.
+                </span>
+              </div>
+
             </CardContent>
           </Card>
 
@@ -850,6 +868,14 @@ export default function MessageCenterPanel() {
                     Staggered delay: {activeBroadcastData.campaign.minDelay}-{activeBroadcastData.campaign.maxDelay}s. 
                     Channel: <span className="font-mono font-bold">{activeBroadcastData.campaign.sessionId}</span>
                   </p>
+                  {activeBroadcastData.campaign.mediaUrl && (
+                    <p className="text-[11px] text-blue-600 mt-1.5 flex items-center gap-1 font-semibold">
+                      <span>🔗 Media Attached:</span>
+                      <a href={activeBroadcastData.campaign.mediaUrl} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">
+                        {activeBroadcastData.campaign.mediaUrl}
+                      </a>
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
