@@ -181,3 +181,41 @@ export const knowledgeChunks = sqliteTable('knowledge_chunks', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
+
+export const workflows = sqliteTable('workflows', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  triggerType: text('trigger_type').notNull(), // 'MESSAGE_RECEIVED' | 'LEAD_CREATED' | 'LEAD_UPDATED' | 'CAMPAIGN_COMPLETED'
+  enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const workflowNodes = sqliteTable('workflow_nodes', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  workflowId: text('workflow_id').references(() => workflows.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull(), // 'TRIGGER' | 'CONDITION' | 'ACTION'
+  nodeType: text('node_type').notNull(), // e.g. 'contains_text', 'has_tag', 'send_message', 'add_tag', 'assign_user'
+  config: text('config').notNull(), // JSON config parameters
+  x: integer('x').default(0).notNull(),
+  y: integer('y').default(0).notNull(),
+});
+
+export const workflowEdges = sqliteTable('workflow_edges', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  workflowId: text('workflow_id').references(() => workflows.id, { onDelete: 'cascade' }).notNull(),
+  sourceNodeId: text('source_node_id').notNull(),
+  targetNodeId: text('target_node_id').notNull(),
+  sourceHandle: text('source_handle'), // e.g. 'true' or 'false'
+});
+
+export const workflowLogs = sqliteTable('workflow_logs', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  workflowId: text('workflow_id').references(() => workflows.id, { onDelete: 'cascade' }).notNull(),
+  contactId: text('contact_id').references(() => contacts.id),
+  status: text('status').notNull(), // 'SUCCESS' | 'FAILED'
+  details: text('details'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});

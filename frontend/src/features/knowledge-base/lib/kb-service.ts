@@ -1,8 +1,7 @@
 import { db } from '@/shared/database';
 import { knowledgeSources, knowledgeChunks } from '@/shared/database/schema';
 import { eq, and } from 'drizzle-orm';
-// @ts-ignore
-import pdf from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 
 /**
@@ -10,8 +9,10 @@ import mammoth from 'mammoth';
  */
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    const data = await pdf(buffer);
-    return data.text || '';
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    return result.text || '';
   } catch (err: any) {
     throw new Error(`Failed to parse PDF: ${err.message}`);
   }
