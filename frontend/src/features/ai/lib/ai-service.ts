@@ -35,7 +35,7 @@ async function fetchCompletions(
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.APP_URL || 'http://localhost:3001',
-      'X-Title': 'Autozonex Connect',
+      'X-Title': 'compuX',
     },
     body: JSON.stringify({
       model: model,

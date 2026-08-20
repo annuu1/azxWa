@@ -14,9 +14,9 @@ export default function DashboardLayout({
         <div className="p-6 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">A</span>
+              <span className="text-white font-bold text-lg">C</span>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Autozonex</h2>
+            <h2 className="text-xl font-bold text-gray-900 tracking-tight">compuX</h2>
           </div>
         </div>
         

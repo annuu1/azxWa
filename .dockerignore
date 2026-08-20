@@ -28,3 +28,7 @@ docker-compose.yml
 swagger.yml
 .github
 assets
+frontend
+data
+uploads
+*.md
