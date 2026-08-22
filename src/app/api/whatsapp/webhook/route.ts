@@ -142,9 +142,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'AI Auto-Reply is disabled globally for this organization' });
     }
 
-    // 6. Verify human handoff status (contact-level AI toggle)
-    if (contact.aiEnabled === false) {
-      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact).`);
+    // 6. Verify human handoff status (contact-level AI toggle for any matching phone number across orgs)
+    const matchingContacts = await db
+      .select()
+      .from(contacts)
+      .where(
+        like(contacts.whatsappId, `%${cleanJidNumber}%`)
+      );
+
+    const isAiDisabledForContact = matchingContacts.some(
+      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0 || c.aiEnabled === false
+    );
+
+    if (isAiDisabledForContact) {
+      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact number).`);
       return NextResponse.json({ success: true, message: 'AI auto-reply paused (contact AI toggle is OFF)' });
     }
 

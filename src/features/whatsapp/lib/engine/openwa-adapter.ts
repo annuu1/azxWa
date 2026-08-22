@@ -260,7 +260,12 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         name: c.name || c.pushName || c.formattedTitle || c.id,
         isGroup: Boolean(c.isGroup || (c.id && c.id.endsWith('@g.us'))),
         unreadCount: c.unreadCount || 0,
-        timestamp: c.timestamp || c.lastMessageTimestamp,
+        timestamp: c.timestamp || c.lastMessageTimestamp || c.lastMessage?.timestamp,
+        lastMessage: c.lastMessage ? {
+          body: c.lastMessage.body || c.lastMessage.text || c.lastMessage.caption || '',
+          hasMedia: Boolean(c.lastMessage.hasMedia || c.lastMessage.mediaUrl || c.lastMessage.mimetype),
+          timestamp: c.lastMessage.timestamp || c.timestamp,
+        } : (c.lastMessageBody ? { body: c.lastMessageBody, timestamp: c.timestamp } : null),
       }));
     } catch (err) {
       console.error('[OpenWAAdapter] getChats error:', err);
@@ -285,6 +290,12 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         timestamp: m.timestamp || m.t || Math.floor(Date.now() / 1000),
         isGroup: Boolean(m.isGroup || (m.chatId && m.chatId.endsWith('@g.us'))),
         hasMedia: Boolean(m.hasMedia || m.mediaUrl || m.mimetype),
+        mediaUrl: m.mediaUrl || (m.body?.startsWith('data:image') ? m.body : undefined),
+        quotedMsg: m.quotedMsg || m.quotedMessage ? {
+          id: m.quotedMsg?.id || m.quotedMessage?.id,
+          body: m.quotedMsg?.body || m.quotedMessage?.body || m.quotedMsg?.text || '',
+          sender: m.quotedMsg?.from || m.quotedMessage?.from || 'Replied Message',
+        } : null,
       }));
     } catch (err) {
       console.error('[OpenWAAdapter] fetchMessages error:', err);

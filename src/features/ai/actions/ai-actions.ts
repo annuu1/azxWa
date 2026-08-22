@@ -3,7 +3,7 @@
 import { db } from '@/shared/database';
 import { aiSettings, contacts, activities, leads } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, like } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { fetchMessages as engineFetchMessages } from '@/features/whatsapp/lib/whatsapp-service';
 import { 
@@ -110,28 +110,63 @@ export async function saveAISettings(
 /**
  * Toggle AI Chatbot status for a specific contact (Human Handoff Toggle)
  */
-export async function toggleContactAI(contactId: string, aiEnabled: boolean) {
+export async function toggleContactAI(identifier: string, aiEnabled: boolean) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
 
   try {
-    await db
-      .update(contacts)
-      .set({ aiEnabled, updatedAt: new Date() })
+    let [targetContact] = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, identifier))
+      .limit(1);
+
+    const targetWhatsappId = targetContact ? targetContact.whatsappId : identifier;
+    const cleanNumber = targetWhatsappId.split('@')[0];
+
+    const matchingContacts = await db
+      .select()
+      .from(contacts)
       .where(
-        and(
-          eq(contacts.id, contactId),
-          eq(contacts.organizationId, orgId)
-        )
+        like(contacts.whatsappId, `%${cleanNumber}%`)
       );
 
-    await db.insert(activities).values({
-      organizationId: orgId,
-      contactId: contactId,
-      type: 'LEAD_UPDATE',
-      description: `AI Chatbot auto-replies were manually ${aiEnabled ? 'ENABLED' : 'PAUSED'} by agent.`,
-    });
+    if (matchingContacts.length > 0) {
+      for (const c of matchingContacts) {
+        await db
+          .update(contacts)
+          .set({ aiEnabled, updatedAt: new Date() })
+          .where(eq(contacts.id, c.id));
+      }
+    } else {
+      const [newContact] = await db
+        .insert(contacts)
+        .values({
+          organizationId: orgId,
+          whatsappId: targetWhatsappId,
+          name: cleanNumber,
+          aiEnabled,
+        })
+        .returning();
+
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: newContact.id,
+        type: 'LEAD_UPDATE',
+        description: `AI Chatbot auto-replies were manually ${aiEnabled ? 'ENABLED' : 'PAUSED'} by agent.`,
+      });
+      return { success: true };
+    }
+
+    if (matchingContacts[0]) {
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: matchingContacts[0].id,
+        type: 'LEAD_UPDATE',
+        description: `AI Chatbot auto-replies were manually ${aiEnabled ? 'ENABLED' : 'PAUSED'} by agent.`,
+      });
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -226,23 +261,33 @@ export async function getContactAIStatus(whatsappId: string) {
   const orgId = userSession.organizationId as string;
 
   try {
-    let [contact] = await db.select().from(contacts).where(
-      and(
-        eq(contacts.whatsappId, whatsappId),
-        eq(contacts.organizationId, orgId)
-      )
-    ).limit(1);
+    const cleanNumber = whatsappId.split('@')[0];
+    const matchingContacts = await db
+      .select()
+      .from(contacts)
+      .where(
+        like(contacts.whatsappId, `%${cleanNumber}%`)
+      );
+
+    let contact = matchingContacts[0];
 
     if (!contact) {
-      [contact] = await db.insert(contacts).values({
-        organizationId: orgId,
-        whatsappId,
-        name: whatsappId.split('@')[0],
-        aiEnabled: true,
-      }).returning();
+      [contact] = await db
+        .insert(contacts)
+        .values({
+          organizationId: orgId,
+          whatsappId,
+          name: cleanNumber,
+          aiEnabled: true,
+        })
+        .returning();
+      return { success: true, aiEnabled: true, contactId: contact.id };
     }
 
-    return { success: true, aiEnabled: contact.aiEnabled, contactId: contact.id };
+    const isAiDisabled = matchingContacts.some(
+      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0 || c.aiEnabled === false
+    );
+    return { success: true, aiEnabled: !isAiDisabled, contactId: contact.id };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

@@ -9,6 +9,7 @@ import {
   FileText, Check, CheckCheck, X, Save, RefreshCw, Paperclip, Reply, Copy, Image as ImageIcon,
   ChevronDown, Phone, MessageSquare, Filter, ShieldCheck, CornerDownLeft, AlertCircle, UploadCloud, File
 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { getWhatsAppChats, getWhatsAppMessages, sendWhatsAppMessage, sendWhatsAppMediaMessage } from '../../actions/whatsapp-actions';
 import { 
   getContactAIStatus, 
@@ -68,6 +69,51 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
   const [leadSaved, setLeadSaved] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Helper to re-order chat list when new message arrives
+  const updateChatListWithIncoming = useCallback((incomingMsg: any) => {
+    const msgChatId = incomingMsg.chatId || incomingMsg.from;
+    if (!msgChatId) return;
+
+    setChats(prevChats => {
+      const idx = prevChats.findIndex(c => (c.id?._serialized || c.id) === msgChatId);
+      const isCurrentActive = selectedChat && (selectedChat.id?._serialized || selectedChat.id) === msgChatId;
+      const snippetText = typeof incomingMsg.body === 'string' ? incomingMsg.body : (incomingMsg.hasMedia ? '📷 Attachment' : 'Message');
+      const timestampNum = incomingMsg.timestamp || Math.floor(Date.now() / 1000);
+
+      if (idx === -1) {
+        const newChatEntry = {
+          id: { _serialized: msgChatId },
+          name: incomingMsg.pushName || incomingMsg.contact?.name || msgChatId.split('@')[0],
+          isGroup: Boolean(msgChatId.endsWith('@g.us')),
+          unreadCount: isCurrentActive || incomingMsg.fromMe ? 0 : 1,
+          timestamp: timestampNum,
+          lastMessage: {
+            body: snippetText,
+            timestamp: timestampNum,
+          },
+        };
+        return [newChatEntry, ...prevChats];
+      }
+
+      const updatedList = [...prevChats];
+      const targetChat = { ...updatedList[idx] };
+      targetChat.lastMessage = {
+        body: snippetText,
+        timestamp: timestampNum,
+      };
+      targetChat.timestamp = timestampNum;
+
+      if (!incomingMsg.fromMe && !isCurrentActive) {
+        targetChat.unreadCount = (targetChat.unreadCount || 0) + 1;
+      }
+
+      updatedList.splice(idx, 1);
+      updatedList.unshift(targetChat);
+      return updatedList;
+    });
+  }, [selectedChat]);
 
   // Fetch Chat List
   const fetchChats = useCallback(async (silent = false) => {
@@ -95,7 +141,6 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
       const data = await getWhatsAppMessages(selectedSessionId, chatId, 40);
       if (data.success && data.messages) {
         setMessages(prev => {
-          // Merge incoming messages dynamically to preserve smooth scroll and avoid overwriting transient state
           if (JSON.stringify(prev.map(m => m.id?._serialized || m.id)) === JSON.stringify(data.messages.map((m: any) => m.id?._serialized || m.id))) {
             return prev;
           }
@@ -134,7 +179,6 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
       fetchMessages(chatId, false);
       fetchAIStatus(chatId);
       
-      // Reset contextual states on chat switch
       setReplyingToMessage(null);
       setStagedFile(null);
       setSummary('');
@@ -143,18 +187,101 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
     }
   }, [selectedChat, fetchMessages, fetchAIStatus]);
 
-  // Auto-polling for live messages & sidebar updates every 2.5 seconds
+  // OpenWA Native Protocol Socket.IO Real-Time Connection
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchChats(true);
-      if (selectedChat) {
-        const chatId = selectedChat.id?._serialized || selectedChat.id;
-        fetchMessages(chatId, true);
-      }
-    }, 2500);
+    let socketUrl = process.env.NEXT_PUBLIC_WHATSAPP_ENGINE_URL;
+    if (!socketUrl && typeof window !== 'undefined') {
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      const host = window.location.hostname;
+      socketUrl = `${proto}//${host}:2785`;
+    }
+    socketUrl = socketUrl || 'http://localhost:2785';
 
-    return () => clearInterval(interval);
-  }, [selectedSessionId, selectedChat, fetchChats, fetchMessages]);
+    const apiKey = 'anurag-dev-api-key';
+
+    let socket: Socket | null = null;
+    try {
+      socket = io(`${socketUrl.replace(/\/+$/, '')}/events`, {
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        auth: { apiKey },
+        extraHeaders: { 'X-API-Key': apiKey },
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log('[UnifiedInbox] Socket.IO Connected to OpenWA events gateway');
+        // OpenWA protocol requires sending a subscribe request on the message channel
+        socket?.emit('message', {
+          type: 'subscribe',
+          sessionId: '*',
+          events: ['*'],
+        });
+      });
+
+      socket.on('connect_error', (err) => {
+        console.warn('[UnifiedInbox] Socket.IO connection warning:', err.message);
+      });
+
+      // Handle OpenWA ServerEventEnvelope on message channel
+      socket.on('message', (msgEnvelope: any) => {
+        if (!msgEnvelope || msgEnvelope.type !== 'event' || !msgEnvelope.payload) return;
+
+        const { event, sessionId: eventSessionId, data } = msgEnvelope.payload;
+
+        if (event === 'message.received' || event === 'message.sent' || event === 'message') {
+          const rawMsg: any = data;
+          if (!rawMsg) return;
+
+          const chatId = rawMsg.chatId || rawMsg.from;
+          const formattedMsg = {
+            id: { _serialized: rawMsg.id?._serialized || rawMsg.id },
+            from: rawMsg.from,
+            to: rawMsg.to,
+            fromMe: Boolean(rawMsg.fromMe || rawMsg.isFromMe || event === 'message.sent'),
+            body: typeof rawMsg.body === 'string' ? rawMsg.body : (rawMsg.text || rawMsg.caption || ''),
+            timestamp: rawMsg.timestamp || rawMsg.t || Math.floor(Date.now() / 1000),
+            hasMedia: Boolean(rawMsg.hasMedia || rawMsg.mediaUrl),
+            mediaUrl: rawMsg.mediaUrl,
+            quotedMsg: rawMsg.quotedMsg || rawMsg.quotedMessage ? {
+              id: rawMsg.quotedMsg?.id || rawMsg.quotedMessage?.id,
+              body: rawMsg.quotedMsg?.body || rawMsg.quotedMessage?.body || rawMsg.quotedMsg?.text || '',
+              sender: rawMsg.quotedMsg?.from || rawMsg.quotedMessage?.from || 'Replied Message',
+            } : null,
+          };
+
+          // 1. Promote chat in sidebar with updated snippet
+          updateChatListWithIncoming({
+            chatId,
+            body: formattedMsg.body,
+            fromMe: formattedMsg.fromMe,
+            timestamp: formattedMsg.timestamp,
+            hasMedia: formattedMsg.hasMedia,
+          });
+
+          // 2. Append to current active thread if chat is selected
+          if (selectedChat) {
+            const activeChatId = selectedChat.id?._serialized || selectedChat.id;
+            if (activeChatId === chatId) {
+              setMessages(prev => {
+                const exists = prev.some(m => (m.id?._serialized || m.id) === (formattedMsg.id._serialized || formattedMsg.id));
+                if (exists) return prev;
+                return [...prev, formattedMsg];
+              });
+            }
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('[UnifiedInbox] Socket.IO initialization error:', err);
+    }
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [selectedSessionId, selectedChat, updateChatListWithIncoming]);
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -179,7 +306,6 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size limit (15MB)
     if (file.size > 15 * 1024 * 1024) {
       alert('File size exceeds 15MB limit.');
       return;
@@ -212,7 +338,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
 
     setSendingMsg(true);
 
-    // Optimistic Insertion into UI thread for zero-latency feedback
+    // Optimistic Insertion into UI thread
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage: any = {
       id: { _serialized: tempId, id: tempId },
@@ -221,6 +347,11 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
       timestamp: Math.floor(Date.now() / 1000),
       hasMedia: Boolean(currentStagedFile),
       mediaUrl: currentStagedFile?.type.startsWith('image') ? currentStagedFile.dataUrl : undefined,
+      quotedMsg: currentReplyingMsg ? {
+        id: currentReplyingMsg.id?._serialized || currentReplyingMsg.id,
+        body: currentReplyingMsg.body,
+        sender: currentReplyingMsg.fromMe ? 'You' : (selectedChat.name || chatId.split('@')[0]),
+      } : null,
       pending: true,
     };
 
@@ -229,24 +360,30 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
     setStagedFile(null);
     setReplyingToMessage(null);
 
+    // Promote in sidebar
+    updateChatListWithIncoming({
+      chatId,
+      body: optimisticMessage.body,
+      fromMe: true,
+      timestamp: optimisticMessage.timestamp,
+    });
+
     try {
       let data: any;
       if (currentStagedFile) {
         data = await sendWhatsAppMediaMessage(selectedSessionId, chatId, currentStagedFile.dataUrl, textToSend);
       } else {
         const fullText = currentReplyingMsg 
-          ? `> ${currentReplyingMsg.body.substring(0, 50)}\n${textToSend}`
+          ? `> ${currentReplyingMsg.body.substring(0, 80)}\n${textToSend}`
           : textToSend;
         data = await sendWhatsAppMessage(selectedSessionId, chatId, fullText);
       }
 
       if (data.success) {
-        setAiEnabled(false); // Manual human message disables AI auto-reply (Handoff trigger)
         await fetchMessages(chatId, true);
         await fetchChats(true);
       } else {
         alert(data.error || 'Failed to send message');
-        // Rollback optimistic message on failure
         setMessages(prev => prev.filter(m => m.id?._serialized !== tempId));
       }
     } catch (err: any) {
@@ -258,16 +395,19 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
   };
 
   const handleToggleAI = async () => {
-    if (!contactId || togglingAI) return;
+    if (!selectedChat || togglingAI) return;
+    const chatId = selectedChat.id?._serialized || selectedChat.id;
     setTogglingAI(true);
     const newStatus = !aiEnabled;
     setAiEnabled(newStatus);
 
     try {
-      const res = await toggleContactAI(contactId, newStatus);
+      const res = await toggleContactAI(contactId || chatId, newStatus);
       if (!res.success) {
         setAiEnabled(!newStatus);
         alert(res.error || 'Failed to toggle AI settings.');
+      } else {
+        await fetchAIStatus(chatId);
       }
     } catch (err) {
       console.error('Failed to toggle AI', err);
@@ -390,9 +530,18 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
         <div className="p-3 border-b border-gray-200 bg-gray-50/70 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Active WhatsApp Session</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-              ● Online
-            </span>
+            <div className="flex items-center space-x-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                ● Live Event Gateway
+              </span>
+              <button 
+                onClick={() => fetchChats(false)} 
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-md"
+                title="Refresh Chats"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
           </div>
           <select
             value={selectedSessionId}
@@ -456,6 +605,10 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
             filteredChats.map((chat) => {
               const chatId = chat.id?._serialized || chat.id;
               const isSelected = selectedChat?.id?._serialized === chatId || selectedChat?.id === chatId;
+              const lastMsgText = typeof chat.lastMessage === 'string'
+                ? chat.lastMessage
+                : (typeof chat.lastMessage?.body === 'string' ? chat.lastMessage.body : '');
+              const lastMsgTime = chat.lastMessage?.timestamp || chat.timestamp;
 
               return (
                 <div 
@@ -472,9 +625,9 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-0.5">
                       <p className="font-bold text-xs text-gray-900 truncate">{chat.name || chatId}</p>
-                      {chat.timestamp && (
-                        <span className="text-[10px] text-gray-400 shrink-0 ml-1">
-                          {formatChatTime(chat.timestamp)}
+                      {lastMsgTime && (
+                        <span className="text-[10px] text-gray-400 shrink-0 ml-1 font-medium">
+                          {formatChatTime(lastMsgTime)}
                         </span>
                       )}
                     </div>
@@ -482,7 +635,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                     <div className="flex items-center justify-between">
                       <p className="text-[11px] text-gray-500 truncate flex items-center">
                         {chat.lastMessage?.hasMedia && <ImageIcon className="w-3 h-3 mr-1 text-gray-400 shrink-0" />}
-                        {chat.lastMessage?.body || 'Click to view conversation'}
+                        {lastMsgText || 'Click to view conversation'}
                       </p>
                       {chat.unreadCount > 0 && (
                         <span className="ml-1 bg-blue-600 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center shrink-0">
@@ -522,9 +675,14 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                   <Bot className={`w-3.5 h-3.5 ${aiEnabled ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
                   <span className="font-semibold text-[11px] text-gray-600">AI Auto-Reply</span>
                   <button 
-                    onClick={handleToggleAI}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleToggleAI();
+                    }}
                     disabled={togglingAI}
-                    className="focus:outline-hidden transition-all text-gray-500"
+                    className="focus:outline-hidden transition-all text-gray-500 cursor-pointer"
                     title={aiEnabled ? "Pause AI Chatbot (Human Agent Handoff)" : "Resume AI Chatbot"}
                   >
                     {aiEnabled ? (
@@ -560,6 +718,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
               ) : (
                 messages.map((msg, index) => {
                   const isFromMe = Boolean(msg.fromMe);
+                  const quoted = msg.quotedMsg || msg.quotedMessage;
 
                   return (
                     <div 
@@ -572,11 +731,23 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                           : 'bg-white border border-gray-200 text-gray-900 rounded-bl-xs'
                       }`}>
                         
+                        {/* Quoted Message Box inside Bubble */}
+                        {quoted && (
+                          <div className={`mb-2 p-2 rounded-r-md border-l-4 text-xs ${
+                            isFromMe ? 'bg-blue-700/60 border-l-blue-200 text-blue-50' : 'bg-gray-100 border-l-blue-600 text-gray-700'
+                          }`}>
+                            <span className="font-bold text-[10px] block opacity-80 uppercase">
+                              {quoted.sender || 'Quoted Message'}
+                            </span>
+                            <p className="line-clamp-2 italic">{quoted.body}</p>
+                          </div>
+                        )}
+
                         {/* Media image preview if available */}
-                        {msg.hasMedia && (msg.mediaUrl || msg.mimetype?.startsWith('image') || msg.body?.startsWith('data:image')) && (
+                        {msg.hasMedia && (msg.mediaUrl || msg.mimetype?.startsWith('image') || (typeof msg.body === 'string' && msg.body.startsWith('data:image'))) && (
                           <div className="mb-2 rounded-lg overflow-hidden border border-gray-100">
                             <img 
-                              src={msg.mediaUrl || (msg.body?.startsWith('data:image') ? msg.body : '')} 
+                              src={msg.mediaUrl || (typeof msg.body === 'string' && msg.body.startsWith('data:image') ? msg.body : '')} 
                               alt="Media Attachment" 
                               className="max-h-56 object-cover w-full rounded"
                               onError={(e) => (e.target as HTMLElement).style.display = 'none'} 
@@ -585,8 +756,8 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                         )}
 
                         {/* Text Body */}
-                        <p className="text-xs leading-relaxed whitespace-pre-line break-words">
-                          {msg.body}
+                        <p className="text-xs leading-relaxed whitespace-pre-line break-words font-medium">
+                          {typeof msg.body === 'string' ? msg.body : ''}
                         </p>
 
                         {/* Bubble Timestamp & Status Ticks */}
@@ -625,7 +796,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                 <div className="bg-blue-50/70 border-l-4 border-l-blue-600 p-2 rounded-r-lg flex justify-between items-center text-xs animate-in fade-in">
                   <div>
                     <span className="font-bold text-blue-800 text-[10px] uppercase block">Replying to message</span>
-                    <p className="text-gray-700 line-clamp-1 italic">{replyingToMessage.body}</p>
+                    <p className="text-gray-700 line-clamp-1 italic">{typeof replyingToMessage.body === 'string' ? replyingToMessage.body : ''}</p>
                   </div>
                   <button onClick={() => setReplyingToMessage(null)} className="text-gray-400 hover:text-gray-600 p-1">
                     <X className="w-3.5 h-3.5" />
