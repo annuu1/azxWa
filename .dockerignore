@@ -1,34 +1,9 @@
-# Ignore node_modules
+Dockerfile
+.dockerignore
 node_modules
-
-# Ignore dotenv files
-.env
-.env.example
-
-# Ignore logs
-logs
-
-# Ignore test files
-tests
-
-# Ignore session files
-sessions
-sessions_test
-
-# Ignore git related files
+.next
 .git
 .gitignore
-
-# Ignore other unnecessary files
-README.md
-CONTRIBUTING.md
-LICENSE.md
-Dockerfile
-docker-compose.yml
-swagger.yml
-.github
-assets
-frontend
-data
-uploads
-*.md
+*.log
+.env.local
+.env.*.local

@@ -1,50 +1,47 @@
-# Use the official Node.js Debian image as the base image
+# Stage 1: Base image
 FROM node:22-bookworm-slim AS base
+WORKDIR /app
 
-ENV CHROME_BIN="/usr/bin/chromium" \
-    PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium" \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD="true" \
-    NODE_ENV="production"
-
-WORKDIR /usr/src/app
-
+# Stage 2: Dependencies
 FROM base AS deps
-
-ARG USE_EDGE=false
-
 COPY package*.json ./
+RUN npm install
 
-RUN if [ "$USE_EDGE" = "true" ]; then \
-      apt-get update && apt-get install -y --no-install-recommends git ca-certificates && \
-      npm ci --only=production --ignore-scripts && \
-      npm install --save-exact git+https://github.com/pedroslopez/whatsapp-web.js.git#main && \
-      apt-get purge -y git ca-certificates && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
-    else \
-      npm ci --only=production --ignore-scripts; \
-    fi
+# Stage 3: Build
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# Create the final stage
-FROM base
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    fonts-freefont-ttf \
-    chromium \
-    ffmpeg && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN npm run build
 
-# Copy only production dependencies from deps stage
-COPY --from=deps /usr/src/app/node_modules ./node_modules
-COPY --from=deps /usr/src/app/package*.json ./
+# Stage 4: Production Runner
+FROM base AS runner
+WORKDIR /app
 
-# Copy application code
-COPY server.js ./
-COPY LICENSE ./
-COPY swagger.json ./
-COPY src/ ./src/
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3001
+ENV HOSTNAME="0.0.0.0"
 
-EXPOSE 3000
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 nextjs
 
-CMD ["npm", "start"]
+# Create persistent storage directories for SQLite and uploads
+RUN mkdir -p /app/data /app/uploads && \
+    chown -R nextjs:nodejs /app/data /app/uploads
+
+# Copy public assets
+COPY --from=builder /app/public ./public
+
+# Copy standalone build output
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3001
+
+CMD ["node", "server.js"]
