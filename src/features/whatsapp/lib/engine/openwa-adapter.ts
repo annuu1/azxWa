@@ -1,4 +1,4 @@
-import { IWhatsAppEngineAdapter, NormalizedWebhookEvent, WhatsAppSession } from './types';
+import { IWhatsAppEngineAdapter, NormalizedWebhookEvent, WhatsAppSession, SessionConfig } from './types';
 
 export class OpenWAAdapter implements IWhatsAppEngineAdapter {
   name = 'openwa';
@@ -102,8 +102,19 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         return {
           id: s.name || s.id,
           uuid: s.id,
+          name: s.name || s.id,
           state,
+          status: rawStatus,
           ready,
+          phone: s.phone || null,
+          pushName: s.pushName || null,
+          connectedAt: s.connectedAt || null,
+          lastActive: s.lastActive || null,
+          lastError: s.lastError || null,
+          restriction: s.restriction || null,
+          engineLoaded: Boolean(s.engineLoaded),
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
         };
       });
     } catch (err) {
@@ -122,6 +133,11 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     return await this.fetchApi(`/api/sessions/${targetId}/stop`, { method: 'POST' });
   }
 
+  async logoutSession(sessionId: string): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/logout`, { method: 'POST' });
+  }
+
   async terminateSession(sessionId: string): Promise<any> {
     const targetId = await this.resolveSessionId(sessionId);
     try {
@@ -129,6 +145,29 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     } catch {
       return await this.fetchApi(`/api/sessions/${targetId}`, { method: 'DELETE' }).catch(() => ({ success: true }));
     }
+  }
+
+  async forceKillSession(sessionId: string): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/force-kill`, { method: 'POST' });
+  }
+
+  async getSessionConfig(sessionId: string): Promise<SessionConfig | null> {
+    try {
+      const targetId = await this.resolveSessionId(sessionId);
+      return await this.fetchApi(`/api/sessions/${targetId}/config`);
+    } catch (err) {
+      console.warn('[OpenWAAdapter] getSessionConfig error:', err);
+      return null;
+    }
+  }
+
+  async updateSessionConfig(sessionId: string, config: Partial<SessionConfig>): Promise<SessionConfig> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/config`, {
+      method: 'PATCH',
+      body: JSON.stringify(config),
+    });
   }
 
   async getSessionStatus(sessionId: string): Promise<{ success: boolean; state: string }> {

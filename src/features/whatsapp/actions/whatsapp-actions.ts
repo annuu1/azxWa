@@ -7,6 +7,10 @@ import {
   startSession as engineStartSession, 
   stopSession as engineStopSession,
   terminateSession as engineTerminateSession,
+  logoutSession as engineLogoutSession,
+  forceKillSession as engineForceKillSession,
+  getSessionConfig as engineGetSessionConfig,
+  updateSessionConfig as engineUpdateSessionConfig,
   requestPairingCode as engineRequestPairingCode,
   getSessions as engineGetSessions,
   getChats as engineGetChats,
@@ -29,7 +33,15 @@ export async function getWhatsAppSessionsData() {
       return {
         ...s,
         state: es?.state || 'DISCONNECTED',
+        status: es?.status || 'disconnected',
         ready: es?.ready || false,
+        phone: es?.phone || null,
+        pushName: es?.pushName || null,
+        connectedAt: es?.connectedAt || null,
+        lastActive: es?.lastActive || null,
+        lastError: es?.lastError || null,
+        restriction: es?.restriction || null,
+        engineLoaded: Boolean(es?.engineLoaded),
       };
     });
 
@@ -91,6 +103,56 @@ export async function stopWhatsAppSession(sessionId: string) {
     return { success: true };
   } catch (error: any) {
     return { error: error.message };
+  }
+}
+
+export async function logoutWhatsAppSession(sessionId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    await engineLogoutSession(sessionId);
+    revalidatePath('/dashboard/whatsapp');
+    return { success: true };
+  } catch (error: any) {
+    return { error: error.message };
+  }
+}
+
+export async function forceKillWhatsAppSession(sessionId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    await engineForceKillSession(sessionId);
+    revalidatePath('/dashboard/whatsapp');
+    return { success: true };
+  } catch (error: any) {
+    return { error: error.message };
+  }
+}
+
+export async function getWhatsAppSessionConfig(sessionId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    const config = await engineGetSessionConfig(sessionId);
+    return { success: true, config };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateWhatsAppSessionConfig(sessionId: string, config: { autoRejectCalls?: boolean }) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    const updated = await engineUpdateSessionConfig(sessionId, config);
+    return { success: true, config: updated };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
 

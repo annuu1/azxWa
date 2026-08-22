@@ -1,6 +1,6 @@
-import { getWhatsAppEngine, WhatsAppSession } from './engine';
+import { getWhatsAppEngine, WhatsAppSession, SessionConfig } from './engine';
 
-export type { WhatsAppSession };
+export type { WhatsAppSession, SessionConfig };
 
 export async function getSessions(): Promise<WhatsAppSession[]> {
   const engine = getWhatsAppEngine();
@@ -15,6 +15,38 @@ export async function startSession(sessionId: string) {
 export async function stopSession(sessionId: string) {
   const engine = getWhatsAppEngine();
   return await engine.stopSession(sessionId);
+}
+
+export async function logoutSession(sessionId: string) {
+  const engine = getWhatsAppEngine();
+  if (engine.logoutSession) {
+    return await engine.logoutSession(sessionId);
+  }
+  return await engine.terminateSession(sessionId);
+}
+
+export async function forceKillSession(sessionId: string) {
+  const engine = getWhatsAppEngine();
+  if (engine.forceKillSession) {
+    return await engine.forceKillSession(sessionId);
+  }
+  return await engine.stopSession(sessionId);
+}
+
+export async function getSessionConfig(sessionId: string): Promise<SessionConfig | null> {
+  const engine = getWhatsAppEngine();
+  if (engine.getSessionConfig) {
+    return await engine.getSessionConfig(sessionId);
+  }
+  return null;
+}
+
+export async function updateSessionConfig(sessionId: string, config: Partial<SessionConfig>): Promise<SessionConfig | null> {
+  const engine = getWhatsAppEngine();
+  if (engine.updateSessionConfig) {
+    return await engine.updateSessionConfig(sessionId, config);
+  }
+  return null;
 }
 
 export async function terminateSession(sessionId: string) {
