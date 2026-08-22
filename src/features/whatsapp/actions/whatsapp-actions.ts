@@ -15,7 +15,8 @@ import {
   getSessions as engineGetSessions,
   getChats as engineGetChats,
   fetchMessages as engineFetchMessages,
-  sendMessage as engineSendMessage
+  sendMessage as engineSendMessage,
+  sendMediaMessage as engineSendMediaMessage
 } from '../lib/whatsapp-service';
 import { revalidatePath } from 'next/cache';
 import { eq, and } from 'drizzle-orm';
@@ -173,7 +174,6 @@ export async function deleteWhatsAppSession(sessionId: string) {
   if (!userSession) throw new Error('Unauthorized');
 
   try {
-    // Try to terminate/logout if running
     try { await engineTerminateSession(sessionId); } catch (e) {}
     
     await db.delete(whatsappSessions).where(
@@ -197,7 +197,6 @@ export async function getWhatsAppChats(sessionId: string) {
   try {
     const chats = await engineGetChats(sessionId);
     
-    // Auto-sync WhatsApp chats into CRM contacts table
     if (chats && chats.length > 0) {
       await db.transaction(async (tx) => {
         for (const chat of chats) {
@@ -232,7 +231,7 @@ export async function getWhatsAppChats(sessionId: string) {
   }
 }
 
-export async function getWhatsAppMessages(sessionId: string, chatId: string, limit = 20) {
+export async function getWhatsAppMessages(sessionId: string, chatId: string, limit = 40) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
 
@@ -252,7 +251,6 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
   try {
     const response = await engineSendMessage(sessionId, chatId, text);
 
-    // Log message sent activity in CRM if the contact exists
     const [contact] = await db.select().from(contacts).where(
       and(
         eq(contacts.whatsappId, chatId),
@@ -261,7 +259,6 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
     ).limit(1);
 
     if (contact) {
-      // Disable AI Auto Reply for this contact (Human agent manual handoff)
       await db.update(contacts)
         .set({ aiEnabled: false, updatedAt: new Date() })
         .where(eq(contacts.id, contact.id));
@@ -273,6 +270,33 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
         description: `Outgoing message sent: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`,
         userId: userSession.userId as string,
       });
+    }
+
+    return { success: true, result: response.result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function sendWhatsAppMediaMessage(sessionId: string, chatId: string, mediaUrl: string, caption?: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const response = await engineSendMediaMessage(sessionId, chatId, mediaUrl, caption);
+
+    const [contact] = await db.select().from(contacts).where(
+      and(
+        eq(contacts.whatsappId, chatId),
+        eq(contacts.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (contact) {
+      await db.update(contacts)
+        .set({ aiEnabled: false, updatedAt: new Date() })
+        .where(eq(contacts.id, contact.id));
     }
 
     return { success: true, result: response.result };

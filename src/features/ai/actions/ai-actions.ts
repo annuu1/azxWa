@@ -28,21 +28,19 @@ export async function getAISettingsData() {
       .limit(1);
 
     if (!settings) {
-      // Initialize default settings row for the organization
       [settings] = await db
         .insert(aiSettings)
         .values({
           organizationId: orgId,
           enabled: false,
           provider: 'groq',
-          model: 'llama-3.8b-instant',
+          model: 'openai/gpt-oss-120b',
           apiKey: null,
           systemPrompt: 'You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.',
         })
         .returning();
     }
 
-    // Mask API Key before sending to frontend for security
     const maskedSettings = {
       ...settings,
       apiKey: settings.apiKey ? '••••••••••••••••' : '',
@@ -71,7 +69,6 @@ export async function saveAISettings(
   try {
     let finalApiKey = apiKey;
 
-    // If API key is masked, preserve the existing key stored in the database
     if (apiKey === '••••••••••••••••') {
       const [existing] = await db
         .select()
@@ -81,7 +78,6 @@ export async function saveAISettings(
       finalApiKey = existing?.apiKey || null;
     }
 
-    // Insert or update on conflict (organizationId is unique)
     await db
       .insert(aiSettings)
       .values({
@@ -130,7 +126,6 @@ export async function toggleContactAI(contactId: string, aiEnabled: boolean) {
         )
       );
 
-    // Log the toggle activity
     await db.insert(activities).values({
       organizationId: orgId,
       contactId: contactId,
@@ -145,22 +140,28 @@ export async function toggleContactAI(contactId: string, aiEnabled: boolean) {
 }
 
 /**
- * Helper to fetch last messages from the engine and format them for the AI service
+ * Helper to fetch up to 30 historical messages from the engine and format them for the AI service
  */
-async function fetchFormattedHistory(sessionId: string, chatId: string, limit = 15): Promise<{ role: 'user' | 'model'; content: string }[]> {
-  const messages = await engineFetchMessages(sessionId, chatId, limit);
-  if (!messages || messages.length === 0) return [];
-  
-  return messages
-    .filter((msg: any) => msg.body && msg.type === 'chat')
-    .map((msg: any) => ({
-      role: (msg.fromMe ? 'model' : 'user') as 'user' | 'model',
-      content: msg.body as string,
-    }));
+async function fetchFormattedHistory(sessionId: string, chatId: string, limit = 30): Promise<{ role: 'user' | 'model'; content: string }[]> {
+  try {
+    const messages = await engineFetchMessages(sessionId, chatId, limit);
+    if (!messages || messages.length === 0) return [];
+    
+    return messages
+      .filter((msg: any) => Boolean(msg.body && typeof msg.body === 'string' && msg.body.trim()))
+      .slice(-limit)
+      .map((msg: any) => ({
+        role: (msg.fromMe || msg.isFromMe ? 'model' : 'user') as 'user' | 'model',
+        content: msg.body as string,
+      }));
+  } catch (err) {
+    console.error('[ai-actions] fetchFormattedHistory error:', err);
+    return [];
+  }
 }
 
 /**
- * Fetch an AI suggested reply for the current chat
+ * Fetch an AI suggested reply for the current chat (with up to 30 historical messages)
  */
 export async function getAISuggestedReplyAction(sessionId: string, chatId: string) {
   const userSession = await getSession();
@@ -168,7 +169,7 @@ export async function getAISuggestedReplyAction(sessionId: string, chatId: strin
   const orgId = userSession.organizationId as string;
 
   try {
-    const history = await fetchFormattedHistory(sessionId, chatId, 10);
+    const history = await fetchFormattedHistory(sessionId, chatId, 30);
     const suggestion = await generateSuggestedReply(orgId, history);
     return { success: true, suggestion };
   } catch (error: any) {
@@ -177,7 +178,7 @@ export async function getAISuggestedReplyAction(sessionId: string, chatId: strin
 }
 
 /**
- * Fetch a summary of the current conversation
+ * Fetch a summary of the current conversation (with up to 30 historical messages)
  */
 export async function getConversationSummaryAction(sessionId: string, chatId: string) {
   const userSession = await getSession();
@@ -185,9 +186,9 @@ export async function getConversationSummaryAction(sessionId: string, chatId: st
   const orgId = userSession.organizationId as string;
 
   try {
-    const history = await fetchFormattedHistory(sessionId, chatId, 25);
+    const history = await fetchFormattedHistory(sessionId, chatId, 30);
     if (history.length === 0) {
-      return { success: true, summary: 'No chat history to summarize.' };
+      return { success: true, summary: 'No chat history available to summarize.' };
     }
     const summary = await generateConversationSummary(orgId, history);
     return { success: true, summary };
@@ -197,7 +198,7 @@ export async function getConversationSummaryAction(sessionId: string, chatId: st
 }
 
 /**
- * Parse chat history and qualify lead data to update CRM
+ * Parse chat history and qualify lead data to update CRM (with up to 30 historical messages)
  */
 export async function getQualifiedLeadAction(sessionId: string, chatId: string) {
   const userSession = await getSession();
@@ -205,9 +206,9 @@ export async function getQualifiedLeadAction(sessionId: string, chatId: string) 
   const orgId = userSession.organizationId as string;
 
   try {
-    const history = await fetchFormattedHistory(sessionId, chatId, 25);
+    const history = await fetchFormattedHistory(sessionId, chatId, 30);
     if (history.length === 0) {
-      return { success: false, error: 'No chat history to qualify.' };
+      return { success: false, error: 'No chat history available to qualify.' };
     }
     const leadData = await qualifyLeadFromChat(orgId, history);
     return { success: true, leadData };
@@ -233,7 +234,6 @@ export async function getContactAIStatus(whatsappId: string) {
     ).limit(1);
 
     if (!contact) {
-      // Create if it doesn't exist yet
       [contact] = await db.insert(contacts).values({
         organizationId: orgId,
         whatsappId,
@@ -262,7 +262,6 @@ export async function saveQualifiedLeadDetails(
   const orgId = userSession.organizationId as string;
 
   try {
-    // 1. Update Contact name
     if (name) {
       await db.update(contacts)
         .set({ name, updatedAt: new Date() })
@@ -274,7 +273,6 @@ export async function saveQualifiedLeadDetails(
         );
     }
 
-    // 2. Ensure contact is converted to a lead in Drizzle CRM
     let [lead] = await db.select().from(leads).where(
       and(
         eq(leads.contactId, contactId),
@@ -290,7 +288,6 @@ export async function saveQualifiedLeadDetails(
       }).returning();
     }
 
-    // 3. Log AI Qualification details as a CRM activity note
     await db.insert(activities).values({
       organizationId: orgId,
       contactId,

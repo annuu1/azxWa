@@ -26,6 +26,9 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     });
 
     if (!res.ok) {
+      if (res.status === 429) {
+        throw new Error('OpenWA API rate limit exceeded. Please wait a few seconds before retrying.');
+      }
       const errBody = await res.json().catch(() => ({ message: res.statusText }));
       throw new Error(errBody.message || errBody.error || `OpenWA HTTP Error ${res.status}`);
     }
@@ -56,7 +59,6 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
       console.warn('[OpenWAAdapter] Error listing sessions during UUID resolution:', err);
     }
 
-    // Try creating the session on OpenWA if it doesn't exist yet
     try {
       const created = await this.fetchApi('/api/sessions', {
         method: 'POST',
@@ -78,6 +80,31 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     return sessionId;
   }
 
+  /**
+   * Automatically registers application webhook with OpenWA engine for live event streaming
+   */
+  private async ensureWebhookRegistered(targetId: string): Promise<void> {
+    try {
+      const targetWebhookUrl = `${process.env.APP_URL || 'http://localhost:9091'}/api/whatsapp/webhook`;
+      const webhooks = await this.fetchApi(`/api/sessions/${targetId}/webhooks`).catch(() => []);
+      
+      const exists = Array.isArray(webhooks) && webhooks.some((w: any) => w.url === targetWebhookUrl && w.active);
+      if (!exists) {
+        await this.fetchApi(`/api/sessions/${targetId}/webhooks`, {
+          method: 'POST',
+          body: JSON.stringify({
+            url: targetWebhookUrl,
+            events: ['*'],
+            active: true,
+          }),
+        });
+        console.log(`[OpenWAAdapter] Auto-registered webhook for session ${targetId}: ${targetWebhookUrl}`);
+      }
+    } catch (err) {
+      console.warn(`[OpenWAAdapter] ensureWebhookRegistered warning for ${targetId}:`, err);
+    }
+  }
+
   async getSessions(): Promise<WhatsAppSession[]> {
     try {
       const data = await this.fetchApi('/api/sessions');
@@ -88,10 +115,11 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         let state = 'DISCONNECTED';
         let ready = false;
 
-        // ONLY mark as CONNECTED and ready=true when status is strictly 'ready' or 'authenticated'
         if (rawStatus === 'ready' || rawStatus === 'authenticated') {
           state = 'CONNECTED';
           ready = true;
+          // Auto-ensure webhook registration for connected session
+          this.ensureWebhookRegistered(s.id);
         } else if (rawStatus === 'qr_ready') {
           state = 'QR_READY';
         } else if (rawStatus === 'initializing') {
@@ -130,7 +158,9 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
 
   async startSession(sessionId: string): Promise<any> {
     const targetId = await this.resolveSessionId(sessionId);
-    return await this.fetchApi(`/api/sessions/${targetId}/start`, { method: 'POST' });
+    const result = await this.fetchApi(`/api/sessions/${targetId}/start`, { method: 'POST' });
+    this.ensureWebhookRegistered(targetId);
+    return result;
   }
 
   async stopSession(sessionId: string): Promise<any> {
@@ -275,7 +305,7 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
 
   async sendMediaMessage(sessionId: string, chatId: string, mediaUrl: string, caption?: string): Promise<any> {
     const targetId = await this.resolveSessionId(sessionId);
-    const isDocument = !mediaUrl.match(/\.(jpeg|jpg|png|gif|webp)$/i);
+    const isDocument = !mediaUrl.match(/\.(jpeg|jpg|png|gif|webp)$/i) && !mediaUrl.startsWith('data:image');
     const endpoint = isDocument ? 'send-document' : 'send-image';
 
     return await this.fetchApi(`/api/sessions/${targetId}/messages/${endpoint}`, {

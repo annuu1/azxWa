@@ -20,26 +20,21 @@ export async function POST(req: NextRequest) {
     const { eventType, sessionId, data } = event;
     const { from: contactWhatsappId, body: incomingMessage, isGroup, fromMe } = data;
 
-    // Log the event name and session
     console.log(`[Webhook] Received event "${eventType}" for session "${sessionId}" from "${contactWhatsappId}"`);
 
     if (!incomingMessage || !contactWhatsappId) {
       return NextResponse.json({ success: true, message: 'Message skipped (empty body or contact ID)' });
     }
 
-    // Ignore non-individual JIDs (group chats, broadcast lists, newsletters, and status updates)
     const isIndividualChat = contactWhatsappId.endsWith('@c.us') || contactWhatsappId.endsWith('@lid');
     if (!isIndividualChat) {
       return NextResponse.json({ success: true, message: `Ignored non-individual JID: ${contactWhatsappId}` });
     }
 
-    // Double trigger prevention:
-    // Some engines fire both 'message' and 'message_create' events.
     if (eventType === 'message_create' && !fromMe) {
       return NextResponse.json({ success: true, message: 'Incoming message ignored on message_create to prevent double reply' });
     }
 
-    // 1. Resolve WhatsApp session to find Organization ID
     let [session] = await db
       .select()
       .from(whatsappSessions)
@@ -50,7 +45,6 @@ export async function POST(req: NextRequest) {
       console.warn(`[Webhook] WhatsApp Session ID "${sessionId}" not matched in database. Trying fallbacks...`);
       const allSessions = await db.select().from(whatsappSessions);
 
-      // Try case-insensitive match
       const caseInsensitiveMatch = allSessions.find(
         (s) => s.sessionId.toLowerCase() === sessionId.toLowerCase()
       );
@@ -58,7 +52,6 @@ export async function POST(req: NextRequest) {
       if (caseInsensitiveMatch) {
         session = caseInsensitiveMatch;
       } else if (allSessions.length > 0) {
-        // Fallback to first session, preferably connected
         const connectedSession = allSessions.find((s) => s.status === 'CONNECTED');
         session = connectedSession || allSessions[0];
       }
@@ -75,7 +68,6 @@ export async function POST(req: NextRequest) {
 
     const orgId = session.organizationId;
 
-    // 2. Resolve or create contact in CRM
     let [contact] = await db
       .select()
       .from(contacts)
@@ -102,7 +94,6 @@ export async function POST(req: NextRequest) {
       console.log(`[Webhook] Created new CRM contact: ${contact.name} (${contactWhatsappId})`);
     }
 
-    // Duplicate message check: If the same incoming message JID has already logged an activity in the last 5 seconds, skip it to prevent double AI responses
     if (!fromMe) {
       const messageDesc = `Incoming message: "${incomingMessage.substring(0, 60)}${incomingMessage.length > 60 ? '...' : ''}"`;
       const fiveSecondsAgo = new Date(Date.now() - 5000);
@@ -125,10 +116,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Human Handoff: If the message is sent by me (outgoing message), deactivate the AI for that contact
-    // BUT only if it was a manual message (not an AI auto-reply).
     if (fromMe) {
-      // Check if we recently logged an AI auto-reply with this exact content
       const cleanBody = incomingMessage.substring(0, 60);
       const fiveSecondsAgo = new Date(Date.now() - 5000);
 
@@ -160,12 +148,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Self-message processed (AI auto-reply disabled for contact)' });
     }
 
-    // 4. Ignore group chats for auto-replies
     if (isGroup) {
       return NextResponse.json({ success: true, message: 'Message ignored (Group chat)' });
     }
 
-    // 5. Fetch AI settings to verify if global auto-reply is enabled
     const [aiConfig] = await db
       .select()
       .from(aiSettings)
@@ -176,13 +162,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'AI Auto-Reply is disabled globally for this organization' });
     }
 
-    // 6. Verify human handoff status (contact-level block)
     if (!contact.aiEnabled) {
       console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (Human agent handoff is active).`);
       return NextResponse.json({ success: true, message: 'AI auto-reply paused (human handoff active)' });
     }
 
-    // 7. Log incoming message activity in CRM timeline
     await db.insert(activities).values({
       organizationId: orgId,
       contactId: contact.id,
@@ -190,29 +174,28 @@ export async function POST(req: NextRequest) {
       description: `Incoming message: "${incomingMessage.substring(0, 60)}${incomingMessage.length > 60 ? '...' : ''}"`,
     });
 
-    // 8. Fetch previous chat history from WhatsApp Engine to construct prompt context
+    // Up to 30 historical messages for prompt context
     let history: { role: 'user' | 'model'; content: string }[] = [];
     try {
-      const messages = await engineFetchMessages(sessionId, contactWhatsappId, 8);
+      const messages = await engineFetchMessages(sessionId, contactWhatsappId, 30);
       if (messages && messages.length > 0) {
         history = messages
-          .filter((m: any) => m.body)
+          .filter((m: any) => Boolean(m.body && typeof m.body === 'string' && m.body.trim()))
+          .slice(-30)
           .map((m: any) => ({
-            role: m.fromMe ? 'model' : 'user',
-            content: m.body,
+            role: (m.fromMe || m.isFromMe ? 'model' : 'user') as 'user' | 'model',
+            content: m.body as string,
           }));
       }
     } catch (historyErr: any) {
       console.warn(`[Webhook] Failed to fetch chat history from engine:`, historyErr.message);
     }
 
-    // 9. Request response from AI Service
     const aiResponse = await generateAIResponse(orgId, history, incomingMessage);
 
     if (aiResponse) {
       console.log(`[Webhook] Sending AI Auto-Reply to ${contactWhatsappId}: "${aiResponse.substring(0, 45)}..."`);
 
-      // 10. Log AI Outgoing message activity in CRM timeline first
       await db.insert(activities).values({
         organizationId: orgId,
         contactId: contact.id,
@@ -220,7 +203,6 @@ export async function POST(req: NextRequest) {
         description: `AI Auto-reply: "${aiResponse.substring(0, 60)}${aiResponse.length > 60 ? '...' : ''}"`,
       });
 
-      // 11. Send message via WhatsApp Engine
       await engineSendMessage(sessionId, contactWhatsappId, aiResponse);
     }
 

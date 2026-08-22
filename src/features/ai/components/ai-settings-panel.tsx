@@ -16,7 +16,7 @@ export default function AISettingsPanel() {
   // Form States
   const [enabled, setEnabled] = useState(false);
   const [provider, setProvider] = useState('groq');
-  const [selectedPreset, setSelectedPreset] = useState('qwen/qwen3.6-27b');
+  const [selectedPreset, setSelectedPreset] = useState('openai/gpt-oss-120b');
   const [customModelName, setCustomModelName] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -27,9 +27,9 @@ export default function AISettingsPanel() {
 
   // Preset models depending on provider selection
   const groqModels = [
-    { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B (Recommended)' },
-    { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT-OSS 120B' },
-    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT-OSS 20B' },
+    { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT-OSS 120B (Recommended)' },
+    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT-OSS 20B (Fast)' },
+    { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B' },
     { value: 'groq/compound', label: 'Groq Compound' },
     { value: 'custom', label: '✏️ Enter Custom Model Name...' }
   ];
