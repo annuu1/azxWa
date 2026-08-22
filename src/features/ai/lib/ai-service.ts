@@ -17,16 +17,50 @@ async function fetchCompletions(
   history: ChatMessage[],
   incomingMessage?: string
 ): Promise<string> {
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...history.map(h => ({
-      role: h.role === 'model' ? 'assistant' : 'user',
-      content: h.content,
-    })),
-  ];
+  // 1. Sanitize history items
+  const rawList = history
+    .filter(h => Boolean(h.content && typeof h.content === 'string' && h.content.trim()))
+    .map(h => {
+      let text = h.content || '';
+      if (text.includes('</think>')) {
+        text = text.split('</think>').pop() || text;
+      }
+      text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      return {
+        role: (h.role === 'model' ? 'assistant' : 'user') as 'assistant' | 'user',
+        content: text,
+      };
+    });
 
   if (incomingMessage) {
-    messages.push({ role: 'user', content: incomingMessage });
+    let cleanIncoming = incomingMessage;
+    if (cleanIncoming.includes('</think>')) {
+      cleanIncoming = cleanIncoming.split('</think>').pop() || cleanIncoming;
+    }
+    cleanIncoming = cleanIncoming.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    if (cleanIncoming) {
+      rawList.push({ role: 'user', content: cleanIncoming });
+    }
+  }
+
+  // 2. Merge consecutive messages of the same role for clean LLM prompt context
+  const mergedMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+    { role: 'system', content: systemPrompt }
+  ];
+
+  for (const item of rawList) {
+    const last = mergedMessages[mergedMessages.length - 1];
+    if (last && last.role === item.role) {
+      last.content += '\n' + item.content;
+    } else {
+      mergedMessages.push(item);
+    }
+  }
+
+  // Auto-normalize model if deprecated llama model string was passed for Groq
+  let targetModel = model;
+  if (url.includes('groq.com') && (!targetModel || targetModel.includes('llama') || targetModel === 'qwen/qwen3.6-27b')) {
+    targetModel = 'openai/gpt-oss-120b';
   }
 
   const response = await fetch(url, {
@@ -39,8 +73,8 @@ async function fetchCompletions(
       'X-Title': 'compuX',
     },
     body: JSON.stringify({
-      model: model,
-      messages: messages,
+      model: targetModel,
+      messages: mergedMessages,
       temperature: 0.7,
     }),
   });
@@ -105,8 +139,7 @@ export async function generateAIResponse(
   let primaryModel = settings.model;
   let primaryApiKey = settings.apiKey || process.env.AI_API_KEY || '';
 
-  // Determine model fallback if default placeholder is used
-  if (!primaryModel || primaryModel === 'llama-3.8b-instant' || primaryModel === 'llama-3.1-8b-instant') {
+  if (!primaryModel || (primaryProvider === 'groq' && (primaryModel.includes('llama') || primaryModel === 'qwen/qwen3.6-27b'))) {
     primaryModel = primaryProvider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct';
   }
 
@@ -126,7 +159,6 @@ export async function generateAIResponse(
         incomingMessage
       );
     } else {
-      // OpenRouter
       if (!primaryApiKey) {
         throw new Error('OpenRouter API Key is not configured.');
       }
@@ -142,7 +174,6 @@ export async function generateAIResponse(
   } catch (err: any) {
     console.error(`[AI Service] Primary provider ${primaryProvider} failed:`, err.message);
 
-    // Fallback logic to OpenRouter if primary was groq
     if (primaryProvider === 'groq') {
       const fallbackApiKey = process.env.AI_API_KEY || settings.apiKey || '';
       const fallbackModel = 'meta-llama/llama-3.3-70b-instruct';
@@ -214,17 +245,13 @@ export async function generateSuggestedReply(
   
   const provider = settings?.provider || 'groq';
   let model = settings?.model || (provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct');
-  if (!model || model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+  if (!model || (provider === 'groq' && (model.includes('llama') || model === 'qwen/qwen3.6-27b'))) {
     model = provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
   const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
 
-  try {
-    return await fetchCompletions(url, apiKey, model, systemPrompt, history);
-  } catch (err: any) {
-    throw err;
-  }
+  return await fetchCompletions(url, apiKey, model, systemPrompt, history);
 }
 
 /**
@@ -243,17 +270,13 @@ export async function generateConversationSummary(
   const systemPrompt = 'Analyze the following chat transcript and provide a short bulleted summary (2-3 sentences max) highlighting user interest and status. Respond directly with the bullet points.';
   const provider = settings?.provider || 'groq';
   let model = settings?.model || (provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct');
-  if (!model || model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+  if (!model || (provider === 'groq' && (model.includes('llama') || model === 'qwen/qwen3.6-27b'))) {
     model = provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
   const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
 
-  try {
-    return await fetchCompletions(url, apiKey, model, systemPrompt, history);
-  } catch (err: any) {
-    throw err;
-  }
+  return await fetchCompletions(url, apiKey, model, systemPrompt, history);
 }
 
 /**
@@ -280,7 +303,7 @@ export async function qualifyLeadFromChat(
 
   const provider = settings?.provider || 'groq';
   let model = settings?.model || (provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct');
-  if (!model || model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+  if (!model || (provider === 'groq' && (model.includes('llama') || model === 'qwen/qwen3.6-27b'))) {
     model = provider === 'groq' ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
