@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw } from 'lucide-react';
+import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw, Edit3 } from 'lucide-react';
 import { getAISettingsData, saveAISettings } from '../actions/ai-actions';
 
 export default function AISettingsPanel() {
@@ -16,25 +16,30 @@ export default function AISettingsPanel() {
   // Form States
   const [enabled, setEnabled] = useState(false);
   const [provider, setProvider] = useState('groq');
-  const [model, setModel] = useState('llama-3.8b-instant');
+  const [selectedPreset, setSelectedPreset] = useState('qwen/qwen3.6-27b');
+  const [customModelName, setCustomModelName] = useState('');
+  const [isCustomMode, setIsCustomMode] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   
   // UI States
   const [showKey, setShowKey] = useState(false);
 
-  // Default models depending on provider selection
+  // Preset models depending on provider selection
   const groqModels = [
-    { value: 'llama-3.8b-instant', label: 'Meta LLaMA 8B Instant (Llama-3.1-8b-instant)' },
-    { value: 'llama-3.3-70b-versatile', label: 'Meta LLaMA 70B Versatile (Llama-3.3-70b-versatile)' },
-    { value: 'mixtral-8x7b-32768', label: 'Mistral Mixtral 8x7B (Mixtral-8x7b-32768)' }
+    { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B (Recommended)' },
+    { value: 'openai/gpt-oss-120b', label: 'OpenAI GPT-OSS 120B' },
+    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT-OSS 20B' },
+    { value: 'groq/compound', label: 'Groq Compound' },
+    { value: 'custom', label: '✏️ Enter Custom Model Name...' }
   ];
 
   const openrouterModels = [
-    { value: 'llama-3.8b-instant', label: 'Meta LLaMA 8B Instruct (meta-llama/llama-3.1-8b-instruct)' },
-    { value: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta LLaMA 70B Instruct (meta-llama/llama-3.3-70b-instruct)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta LLaMA 70B Instruct' },
     { value: 'google/gemini-2.5-flash', label: 'Google Gemini 2.5 Flash' },
-    { value: 'openai/gpt-4o-mini', label: 'OpenAI GPT-4o Mini' }
+    { value: 'openai/gpt-4o-mini', label: 'OpenAI GPT-4o Mini' },
+    { value: 'anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
+    { value: 'custom', label: '✏️ Enter Custom Model Name...' }
   ];
 
   const fetchSettings = async () => {
@@ -44,9 +49,22 @@ export default function AISettingsPanel() {
       if (data.success && data.settings) {
         setEnabled(data.settings.enabled);
         setProvider(data.settings.provider);
-        setModel(data.settings.model);
         setApiKey(data.settings.apiKey || '');
         setSystemPrompt(data.settings.systemPrompt);
+
+        const currentModel = data.settings.model || 'qwen/qwen3.6-27b';
+        const activePresets = data.settings.provider === 'groq' ? groqModels : openrouterModels;
+        const matchingPreset = activePresets.find(m => m.value === currentModel);
+
+        if (matchingPreset && matchingPreset.value !== 'custom') {
+          setSelectedPreset(matchingPreset.value);
+          setIsCustomMode(false);
+          setCustomModelName('');
+        } else {
+          setSelectedPreset('custom');
+          setIsCustomMode(true);
+          setCustomModelName(currentModel);
+        }
       }
     } catch (err: any) {
       setErrorMsg('Failed to load AI settings: ' + err.message);
@@ -59,11 +77,25 @@ export default function AISettingsPanel() {
     fetchSettings();
   }, []);
 
-  // Set default model on provider switch
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
-    // Keep 'llama-3.8b-instant' as standard identifier since both handle it
-    setModel('llama-3.8b-instant');
+    if (newProvider === 'groq') {
+      setSelectedPreset('qwen/qwen3.6-27b');
+      setIsCustomMode(false);
+    } else {
+      setSelectedPreset('meta-llama/llama-3.3-70b-instruct');
+      setIsCustomMode(false);
+    }
+  };
+
+  const handlePresetChange = (value: string) => {
+    setSelectedPreset(value);
+    if (value === 'custom') {
+      setIsCustomMode(true);
+    } else {
+      setIsCustomMode(false);
+      setCustomModelName('');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -72,18 +104,27 @@ export default function AISettingsPanel() {
     setSuccessMsg('');
     setErrorMsg('');
 
+    const finalModel = isCustomMode 
+      ? customModelName.trim() 
+      : selectedPreset;
+
+    if (!finalModel) {
+      setErrorMsg('Please specify or select a valid AI Model.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const res = await saveAISettings(
         enabled,
         provider,
-        model,
+        finalModel,
         apiKey || null,
         systemPrompt
       );
 
       if (res.success) {
         setSuccessMsg('AI Configuration saved successfully!');
-        // Re-fetch to display masked key status
         fetchSettings();
       } else {
         setErrorMsg(res.error || 'Failed to save configuration.');
@@ -192,30 +233,42 @@ export default function AISettingsPanel() {
                 </div>
               </div>
 
-              {/* Model Selector */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700 uppercase">AI Model</label>
+              {/* Model Selector & Custom Model Input */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700 uppercase">AI Model Selection</label>
                 <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  value={selectedPreset}
+                  onChange={(e) => handlePresetChange(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  {provider === 'groq'
-                    ? groqModels.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))
-                    : openrouterModels.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
+                  {(provider === 'groq' ? groqModels : openrouterModels).map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
                 </select>
+
+                {/* Custom Model Input if Custom Selected */}
+                {isCustomMode && (
+                  <div className="pt-1 space-y-1 animate-in fade-in">
+                    <div className="flex items-center text-xs font-medium text-blue-700">
+                      <Edit3 className="w-3.5 h-3.5 mr-1" /> Custom Model Name ID:
+                    </div>
+                    <Input
+                      type="text"
+                      value={customModelName}
+                      onChange={(e) => setCustomModelName(e.target.value)}
+                      placeholder={provider === 'groq' ? 'e.g. qwen/qwen3.6-27b or openai/gpt-oss-120b' : 'e.g. meta-llama/llama-3.3-70b-instruct'}
+                      className="bg-white text-sm"
+                      required
+                    />
+                  </div>
+                )}
+
                 <p className="text-[10px] text-gray-500 leading-normal">
                   {provider === 'groq' 
-                    ? 'Groq delivers instant responses using LLaMA models. LLaMA 8B Instant is recommended.'
-                    : 'OpenRouter offers fallback to a wide collection of models. Set up an OpenRouter API key to activate.'}
+                    ? 'Groq delivers near-instant response speeds. You can pick from presets or enter any custom model hosted on Groq.'
+                    : 'OpenRouter allows selecting or typing any custom model slug available on OpenRouter.'}
                 </p>
               </div>
 

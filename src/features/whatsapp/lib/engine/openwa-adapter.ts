@@ -88,7 +88,8 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         let state = 'DISCONNECTED';
         let ready = false;
 
-        if (rawStatus === 'ready' || rawStatus === 'authenticated' || s.engineLoaded === true) {
+        // ONLY mark as CONNECTED and ready=true when status is strictly 'ready' or 'authenticated'
+        if (rawStatus === 'ready' || rawStatus === 'authenticated') {
           state = 'CONNECTED';
           ready = true;
         } else if (rawStatus === 'qr_ready') {
@@ -97,6 +98,10 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
           state = 'INITIALIZING';
         } else if (rawStatus === 'authenticating') {
           state = 'AUTHENTICATING';
+        } else if (rawStatus === 'action_required') {
+          state = 'ACTION_REQUIRED';
+        } else if (rawStatus === 'failed') {
+          state = 'FAILED';
         }
 
         return {
@@ -175,7 +180,7 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
       const targetId = await this.resolveSessionId(sessionId);
       const data = await this.fetchApi(`/api/sessions/${targetId}`);
       const rawStatus = (data.status || 'disconnected').toLowerCase();
-      const isReady = rawStatus === 'ready' || data.engineLoaded === true;
+      const isReady = rawStatus === 'ready' || rawStatus === 'authenticated';
       return {
         success: isReady,
         state: isReady ? 'CONNECTED' : rawStatus.toUpperCase(),

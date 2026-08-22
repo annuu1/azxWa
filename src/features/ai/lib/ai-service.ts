@@ -34,7 +34,8 @@ async function fetchCompletions(
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.APP_URL || 'http://localhost:3001',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'HTTP-Referer': process.env.APP_URL || 'http://localhost:9091',
       'X-Title': 'compuX',
     },
     body: JSON.stringify({
@@ -93,9 +94,9 @@ export async function generateAIResponse(
   let primaryModel = settings.model;
   let primaryApiKey = settings.apiKey || process.env.AI_API_KEY || '';
 
-  // Determine standard model names if placeholders are used
-  if (primaryModel === 'llama-3.8b-instant') {
-    primaryModel = primaryProvider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct';
+  // Determine model fallback if default placeholder is used
+  if (primaryModel === 'llama-3.8b-instant' || primaryModel === 'llama-3.1-8b-instant') {
+    primaryModel = primaryProvider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct';
   }
 
   console.log(`[AI Service] Attempting response generation using ${primaryProvider} (${primaryModel})...`);
@@ -135,8 +136,8 @@ export async function generateAIResponse(
       const fallbackApiKey = process.env.AI_API_KEY || settings.apiKey || '';
       const fallbackModel = 'meta-llama/llama-3.1-8b-instruct';
       
-      if (!fallbackApiKey) {
-        console.warn('[AI Service] Fallback to OpenRouter skipped: No global AI_API_KEY configured.');
+      if (!fallbackApiKey || fallbackApiKey.startsWith('gsk_')) {
+        console.warn('[AI Service] Fallback to OpenRouter skipped: No OpenRouter AI_API_KEY configured.');
         throw err;
       }
 
@@ -202,9 +203,9 @@ export async function generateSuggestedReply(
   const systemPrompt = basePrompt + kbContext;
   
   const provider = settings?.provider || 'groq';
-  let model = settings?.model || (provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct');
-  if (model === 'llama-3.8b-instant') {
-    model = provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct';
+  let model = settings?.model || (provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct');
+  if (model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+    model = provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
 
@@ -213,16 +214,6 @@ export async function generateSuggestedReply(
   try {
     return await fetchCompletions(url, apiKey, model, systemPrompt, history);
   } catch (err: any) {
-    // Fallback if groq fails
-    if (provider === 'groq' && process.env.AI_API_KEY) {
-      return await fetchCompletions(
-        'https://openrouter.ai/api/v1/chat/completions',
-        process.env.AI_API_KEY,
-        'meta-llama/llama-3.1-8b-instruct',
-        systemPrompt,
-        history
-      );
-    }
     throw err;
   }
 }
@@ -242,9 +233,9 @@ export async function generateConversationSummary(
 
   const systemPrompt = 'Analyze the following chat transcript and provide a very short, bulleted summary (2-3 sentences max) highlighting the user interest and current status.';
   const provider = settings?.provider || 'groq';
-  let model = settings?.model || (provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct');
-  if (model === 'llama-3.8b-instant') {
-    model = provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct';
+  let model = settings?.model || (provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct');
+  if (model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+    model = provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
   const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
@@ -252,15 +243,6 @@ export async function generateConversationSummary(
   try {
     return await fetchCompletions(url, apiKey, model, systemPrompt, history);
   } catch (err: any) {
-    if (provider === 'groq' && process.env.AI_API_KEY) {
-      return await fetchCompletions(
-        'https://openrouter.ai/api/v1/chat/completions',
-        process.env.AI_API_KEY,
-        'meta-llama/llama-3.1-8b-instruct',
-        systemPrompt,
-        history
-      );
-    }
     throw err;
   }
 }
@@ -288,9 +270,9 @@ export async function qualifyLeadFromChat(
   }`;
 
   const provider = settings?.provider || 'groq';
-  let model = settings?.model || (provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct');
-  if (model === 'llama-3.8b-instant') {
-    model = provider === 'groq' ? 'llama-3.1-8b-instant' : 'meta-llama/llama-3.1-8b-instruct';
+  let model = settings?.model || (provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct');
+  if (model === 'llama-3.8b-instant' || model === 'llama-3.1-8b-instant') {
+    model = provider === 'groq' ? 'qwen/qwen3.6-27b' : 'meta-llama/llama-3.1-8b-instruct';
   }
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
   const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
@@ -298,7 +280,6 @@ export async function qualifyLeadFromChat(
   try {
     const jsonText = await fetchCompletions(url, apiKey, model, systemPrompt, history);
     
-    // Clean up possible markdown code blocks if the AI disobeyed instructions
     let cleanJson = jsonText;
     if (jsonText.includes('```')) {
       cleanJson = jsonText.replace(/```json|```/g, '').trim();
