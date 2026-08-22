@@ -1,0 +1,3 @@
+## 2024-11-20 - Pipeline Board Rendering Optimization
+**Learning:** The pipeline board rendered leads by repeatedly filtering the entire `leads` array for each stage (`leads.filter(...)`) during every re-render. In a CRM context with potentially hundreds of leads and numerous stages, this O(S * L) operation becomes a serious bottleneck, especially since user interactions (like dragging, updating status, or opening details) trigger frequent re-renders.
+**Action:** Replace repeated `.filter()` calls inside `.map()` loops with a memoized `Map` that groups the items in a single pass (O(S + L)). This strategy significantly reduces rendering overhead for board, list, and grouped table views.
