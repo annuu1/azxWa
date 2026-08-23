@@ -1,0 +1,3 @@
+## 2024-12-07 - Memoizing and optimizing large list filtering
+**Learning:** Found an anti-pattern in `src/features/crm/components/contacts-list.tsx` where expensive string operations (`toLowerCase`) were redundantly executed inside a `.filter` loop for a large list (CRM contacts) without being wrapped in `useMemo`. This leads to unnecessary recalculations on every render.
+**Action:** When filtering lists based on search terms, always extract static manipulations like `toLowerCase` outside the `.filter` loop and wrap the entire filtering logic in `useMemo` to prevent unneeded recalculations when other state changes trigger a re-render.

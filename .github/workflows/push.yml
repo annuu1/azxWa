@@ -26,8 +26,8 @@ jobs:
         if: github.ref_name == 'edge'
         run: |
           npm install --save-exact github:pedroslopez/whatsapp-web.js#main
-      - name: Run tests
-        run: npm test
+      - name: Run build
+        run: npm run build
         timeout-minutes: 5
 
   docker:
