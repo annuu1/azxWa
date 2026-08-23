@@ -7,7 +7,7 @@ import { Input } from "@/shared/components/ui/input";
 import { 
   Send, User, Users, Search, Sparkles, Bot, Clock, ToggleLeft, ToggleRight, 
   FileText, Check, CheckCheck, X, Save, RefreshCw, Paperclip, Reply, Copy, Image as ImageIcon,
-  ChevronDown, Phone, MessageSquare, Filter, ShieldCheck, CornerDownLeft, AlertCircle, UploadCloud, File
+  ChevronDown, Phone, MessageSquare, Filter, ShieldCheck, CornerDownLeft, AlertCircle, UploadCloud, File, ArrowLeft
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { getWhatsAppChats, getWhatsAppMessages, sendWhatsAppMessage, sendWhatsAppMediaMessage } from '../../actions/whatsapp-actions';
@@ -493,7 +493,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
+    <div className="flex flex-col lg:flex-row h-full w-full border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-white shadow-xs">
       
       {/* Hidden Native File Input */}
       <input 
@@ -505,15 +505,15 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
       />
 
       {/* Sidebar - Sessions & Chat List */}
-      <div className="w-full lg:w-80 border-r border-gray-200 flex flex-col shrink-0 bg-white">
+      <div className={`w-full lg:w-80 border-r border-gray-200 flex flex-col shrink-0 bg-white h-full ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
         
         {/* Session Picker Header */}
-        <div className="p-3 border-b border-gray-200 bg-gray-50/70 space-y-2">
+        <div className="p-3 border-b border-gray-200 bg-gray-50/70 space-y-2 shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Active WhatsApp Session</span>
             <div className="flex items-center space-x-1">
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                ● Live Event Gateway
+                ● Live Gateway
               </span>
               <button 
                 onClick={() => fetchChats(false)} 
@@ -538,7 +538,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
         </div>
 
         {/* Sidebar Search Bar */}
-        <div className="p-3 border-b border-gray-100">
+        <div className="p-3 border-b border-gray-100 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <Input 
@@ -573,7 +573,7 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
         </div>
 
         {/* Chat List Column */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-100 min-h-0">
           {loadingChats ? (
             <div className="p-8 text-center text-xs text-gray-400 flex items-center justify-center">
               <RefreshCw className="w-4 h-4 mr-2 animate-spin text-blue-500" /> Loading chats...
@@ -633,28 +633,42 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
       </div>
 
       {/* Main Container - Message Thread */}
-      <div className="flex-1 flex flex-col bg-gray-50/40 overflow-hidden relative">
+      <div className={`flex-1 flex flex-col bg-gray-50/40 overflow-hidden relative h-full ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}>
         {selectedChat ? (
           <>
             {/* Thread Top Bar Header */}
-            <div className="p-3.5 border-b border-gray-200 bg-white flex items-center justify-between shadow-2xs shrink-0">
-              <div className="flex items-center space-x-3">
-                <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+            <div className="p-2.5 sm:p-3.5 border-b border-gray-200 bg-white flex items-center justify-between shadow-2xs shrink-0 gap-2">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                {/* Mobile Back Button to Return to Chat List */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedChat(null)}
+                  className="lg:hidden h-8 w-8 -ml-1 text-gray-700 hover:bg-gray-100 shrink-0"
+                  aria-label="Back to chat list"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+
+                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                   {selectedChat.isGroup ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
                 </div>
-                <div>
-                  <p className="font-bold text-sm text-gray-900">{selectedChat.name || (selectedChat.id?._serialized || selectedChat.id)}</p>
-                  <p className="text-[11px] text-gray-400 font-mono">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-xs sm:text-sm text-gray-900 truncate">
+                    {selectedChat.name || (selectedChat.id?._serialized || selectedChat.id)}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-gray-400 font-mono truncate">
                     {selectedChat.id?._serialized || selectedChat.id}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2.5">
+              <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
                 {/* AI Chatbot Handoff Switch */}
-                <div className="flex items-center space-x-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs">
+                <div className="flex items-center space-x-1 bg-gray-50 border border-gray-200 px-2 sm:px-2.5 py-1 rounded-full text-xs">
                   <Bot className={`w-3.5 h-3.5 ${aiEnabled ? 'text-emerald-500 animate-pulse' : 'text-gray-400'}`} />
-                  <span className="font-semibold text-[11px] text-gray-600">AI Auto-Reply</span>
+                  <span className="font-semibold text-[10px] sm:text-[11px] text-gray-600 hidden sm:inline">AI Auto-Reply</span>
                   <button 
                     type="button"
                     onClick={(e) => {
@@ -663,13 +677,13 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                       handleToggleAI();
                     }}
                     disabled={togglingAI}
-                    className="focus:outline-hidden transition-all text-gray-500 cursor-pointer"
+                    className="focus:outline-hidden transition-all text-gray-500 cursor-pointer ml-1"
                     title={aiEnabled ? "Pause AI Chatbot (Human Agent Handoff)" : "Resume AI Chatbot"}
                   >
                     {aiEnabled ? (
-                      <ToggleRight className="w-5 h-5 text-emerald-600" />
+                      <ToggleRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                     ) : (
-                      <ToggleLeft className="w-5 h-5 text-gray-400" />
+                      <ToggleLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                     )}
                   </button>
                 </div>
@@ -679,9 +693,10 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
                   variant="outline" 
                   size="sm" 
                   onClick={() => setShowRightPanel(!showRightPanel)}
-                  className={`text-xs font-semibold ${showRightPanel ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-200'}`}
+                  className={`text-[11px] sm:text-xs font-semibold px-2 sm:px-3 h-7 sm:h-8 ${showRightPanel ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-200'}`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1 text-blue-600" /> AI Copilot
+                  <Sparkles className="w-3.5 h-3.5 sm:mr-1 text-blue-600" />
+                  <span className="hidden sm:inline">AI Copilot</span>
                 </Button>
               </div>
             </div>
@@ -871,121 +886,123 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
 
       {/* Right Column - AI Copilot Sidepanel */}
       {selectedChat && showRightPanel && (
-        <div className="w-full lg:w-80 border-l border-gray-200 bg-white flex flex-col shrink-0 animate-in slide-in-from-right duration-200">
-          <div className="p-3.5 border-b border-gray-200 flex justify-between items-center bg-gray-50/70">
-            <h3 className="font-bold text-xs flex items-center text-gray-900">
-              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> AI Copilot Workspace
-            </h3>
-            <button onClick={() => setShowRightPanel(false)} className="text-gray-400 hover:text-gray-600 p-1">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          
-          {/* Sidepanel Tabs */}
-          <div className="flex border-b border-gray-200 text-xs font-bold bg-gray-50/30">
-            <button
-              onClick={() => setActiveRightTab('summary')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
-                activeRightTab === 'summary' ? 'border-b-blue-600 text-blue-700 bg-white font-bold' : 'border-b-transparent text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 inline mr-1" /> Summary
-            </button>
-            <button
-              onClick={() => setActiveRightTab('qualify')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
-                activeRightTab === 'qualify' ? 'border-b-blue-600 text-blue-700 bg-white font-bold' : 'border-b-transparent text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 inline mr-1" /> Qualify CRM Lead
-            </button>
-          </div>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs lg:static lg:bg-transparent lg:inset-auto">
+          <div className="w-full max-w-xs sm:max-w-sm lg:w-80 border-l border-gray-200 bg-white flex flex-col shrink-0 h-full shadow-2xl lg:shadow-none animate-in slide-in-from-right duration-200">
+            <div className="p-3.5 border-b border-gray-200 flex justify-between items-center bg-gray-50/70">
+              <h3 className="font-bold text-xs flex items-center text-gray-900">
+                <Sparkles className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> AI Copilot Workspace
+              </h3>
+              <button onClick={() => setShowRightPanel(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Sidepanel Tabs */}
+            <div className="flex border-b border-gray-200 text-xs font-bold bg-gray-50/30">
+              <button
+                onClick={() => setActiveRightTab('summary')}
+                className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+                  activeRightTab === 'summary' ? 'border-b-blue-600 text-blue-700 bg-white font-bold' : 'border-b-transparent text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 inline mr-1" /> Summary
+              </button>
+              <button
+                onClick={() => setActiveRightTab('qualify')}
+                className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+                  activeRightTab === 'qualify' ? 'border-b-blue-600 text-blue-700 bg-white font-bold' : 'border-b-transparent text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 inline mr-1" /> Qualify CRM Lead
+              </button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {activeRightTab === 'summary' ? (
-              <div className="space-y-3">
-                <Button
-                  onClick={handleGenerateSummary}
-                  disabled={generatingSummary}
-                  className="w-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
-                  size="sm"
-                >
-                  {generatingSummary ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Clock className="w-3.5 h-3.5 mr-1.5" />}
-                  Generate AI Summary
-                </Button>
-                {summary && (
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs leading-relaxed text-gray-700 whitespace-pre-line shadow-2xs">
-                    {summary}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Button
-                  onClick={handleQualifyLead}
-                  disabled={qualifying}
-                  className="w-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
-                  size="sm"
-                >
-                  {qualifying ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Bot className="w-3.5 h-3.5 mr-1.5" />}
-                  Qualify Lead (Extract Info)
-                </Button>
-                
-                {qualifiedData && (
-                  <div className="space-y-3 bg-gray-50/70 border border-gray-200 rounded-xl p-3.5 text-xs shadow-2xs">
-                    <div className="space-y-1">
-                      <span className="font-bold text-gray-400 block uppercase text-[9px]">Full Name</span>
-                      <Input
-                        type="text"
-                        value={qualifiedData.name || ''}
-                        onChange={(e) => setQualifiedData({ ...qualifiedData, name: e.target.value })}
-                        className="bg-white text-xs h-8"
-                        placeholder="No name detected"
-                      />
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {activeRightTab === 'summary' ? (
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleGenerateSummary}
+                    disabled={generatingSummary}
+                    className="w-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                    size="sm"
+                  >
+                    {generatingSummary ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Clock className="w-3.5 h-3.5 mr-1.5" />}
+                    Generate AI Summary
+                  </Button>
+                  {summary && (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs leading-relaxed text-gray-700 whitespace-pre-line shadow-2xs">
+                      {summary}
                     </div>
-                    <div className="space-y-1">
-                      <span className="font-bold text-gray-400 block uppercase text-[9px]">Email Address</span>
-                      <Input
-                        type="text"
-                        value={qualifiedData.email || ''}
-                        onChange={(e) => setQualifiedData({ ...qualifiedData, email: e.target.value })}
-                        className="bg-white text-xs h-8"
-                        placeholder="No email detected"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="font-bold text-gray-400 block uppercase text-[9px]">Preferences & Notes</span>
-                      <textarea
-                        value={qualifiedData.notes || ''}
-                        onChange={(e) => setQualifiedData({ ...qualifiedData, notes: e.target.value })}
-                        className="w-full h-24 bg-white border border-gray-200 rounded-lg p-2 text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500 leading-normal resize-none font-medium text-gray-800"
-                        placeholder="No preferences detected"
-                      />
-                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Button
+                    onClick={handleQualifyLead}
+                    disabled={qualifying}
+                    className="w-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                    size="sm"
+                  >
+                    {qualifying ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Bot className="w-3.5 h-3.5 mr-1.5" />}
+                    Qualify Lead (Extract Info)
+                  </Button>
+                  
+                  {qualifiedData && (
+                    <div className="space-y-3 bg-gray-50/70 border border-gray-200 rounded-xl p-3.5 text-xs shadow-2xs">
+                      <div className="space-y-1">
+                        <span className="font-bold text-gray-400 block uppercase text-[9px]">Full Name</span>
+                        <Input
+                          type="text"
+                          value={qualifiedData.name || ''}
+                          onChange={(e) => setQualifiedData({ ...qualifiedData, name: e.target.value })}
+                          className="bg-white text-xs h-8"
+                          placeholder="No name detected"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-gray-400 block uppercase text-[9px]">Email Address</span>
+                        <Input
+                          type="text"
+                          value={qualifiedData.email || ''}
+                          onChange={(e) => setQualifiedData({ ...qualifiedData, email: e.target.value })}
+                          className="bg-white text-xs h-8"
+                          placeholder="No email detected"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-gray-400 block uppercase text-[9px]">Preferences & Notes</span>
+                        <textarea
+                          value={qualifiedData.notes || ''}
+                          onChange={(e) => setQualifiedData({ ...qualifiedData, notes: e.target.value })}
+                          className="w-full h-24 bg-white border border-gray-200 rounded-lg p-2 text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500 leading-normal resize-none font-medium text-gray-800"
+                          placeholder="No preferences detected"
+                        />
+                      </div>
 
-                    <Button
-                      onClick={handleSaveLeadDetails}
-                      disabled={savingLead || leadSaved}
-                      className={`w-full text-xs font-semibold shadow-xs ${
-                        leadSaved 
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
-                      size="sm"
-                    >
-                      {savingLead ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                      ) : leadSaved ? (
-                        <Check className="w-3.5 h-3.5 mr-1.5" />
-                      ) : (
-                        <Save className="w-3.5 h-3.5 mr-1.5" />
-                      )}
-                      {leadSaved ? 'Applied to CRM!' : 'Apply to CRM'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+                      <Button
+                        onClick={handleSaveLeadDetails}
+                        disabled={savingLead || leadSaved}
+                        className={`w-full text-xs font-semibold shadow-xs ${
+                          leadSaved 
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                        size="sm"
+                      >
+                        {savingLead ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        ) : leadSaved ? (
+                          <Check className="w-3.5 h-3.5 mr-1.5" />
+                        ) : (
+                          <Save className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        {leadSaved ? 'Applied to CRM!' : 'Apply to CRM'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

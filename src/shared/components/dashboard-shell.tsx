@@ -6,6 +6,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Menu, X, LogOut } from 'lucide-react';
 import { logout } from '@/features/auth/actions/auth-actions';
 
+import { PLATFORM_INFO } from '@/shared/config/platform';
+
 interface DashboardShellProps {
   children: React.ReactNode;
 }
@@ -29,9 +31,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </Button>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shadow-xs">
-              <span className="text-white font-bold text-base">C</span>
+              <span className="text-white font-bold text-base">{PLATFORM_INFO.shortName}</span>
             </div>
-            <h2 className="text-lg font-bold text-gray-900 tracking-tight">compuX</h2>
+            <h2 className="text-lg font-bold text-gray-900 tracking-tight">{PLATFORM_INFO.name}</h2>
           </div>
         </div>
       </header>
@@ -50,9 +52,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
             <div className="p-4 border-b flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-xs">
-                  <span className="text-white font-bold text-lg">C</span>
+                  <span className="text-white font-bold text-lg">{PLATFORM_INFO.shortName}</span>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 tracking-tight">compuX</h2>
+                <h2 className="text-xl font-bold text-gray-900 tracking-tight">{PLATFORM_INFO.name}</h2>
               </div>
               <Button
                 variant="ghost"
@@ -87,9 +89,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
         <div className="p-6 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-xs">
-              <span className="text-white font-bold text-lg">C</span>
+              <span className="text-white font-bold text-lg">{PLATFORM_INFO.shortName}</span>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight">compuX</h2>
+            <h2 className="text-xl font-bold text-gray-900 tracking-tight">{PLATFORM_INFO.name}</h2>
           </div>
         </div>
 

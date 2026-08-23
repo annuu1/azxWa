@@ -12,9 +12,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { PLATFORM_INFO } from "@/shared/config/platform";
+
 export const metadata: Metadata = {
-  title: "compuX - WhatsApp CRM & Automation",
-  description: "AI-Powered WhatsApp CRM, Campaign Automation & Customer Engagement Platform",
+  title: `${PLATFORM_INFO.name} - WhatsApp CRM & Automation`,
+  description: PLATFORM_INFO.description,
 };
 
 export default function RootLayout({

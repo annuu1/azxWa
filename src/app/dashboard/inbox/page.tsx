@@ -13,21 +13,25 @@ export default async function InboxPage() {
   const sessionIds = orgSessions.map(s => s.sessionId);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-2 sm:p-4 lg:p-6 flex flex-col h-[calc(100dvh-57px)] md:h-screen overflow-hidden space-y-2 sm:space-y-4">
+      <div className="flex justify-between items-center shrink-0 px-1">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Unified WhatsApp Inbox</h1>
-          <p className="text-xs text-gray-500 mt-1">Manage customer conversations and AI auto-replies across all connected sessions.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Unified WhatsApp Inbox</h1>
+          <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 hidden sm:block">
+            Manage customer conversations and AI auto-replies across all connected sessions.
+          </p>
         </div>
       </div>
 
       {sessionIds.length > 0 ? (
-        <UnifiedInbox availableSessions={sessionIds} />
+        <div className="flex-1 min-h-0">
+          <UnifiedInbox availableSessions={sessionIds} />
+        </div>
       ) : (
-        <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300 p-8 shadow-xs">
-          <p className="text-gray-500 mb-4 font-medium">No active WhatsApp sessions found for your organization.</p>
+        <div className="text-center py-16 sm:py-20 bg-white rounded-xl border border-dashed border-gray-300 p-6 sm:p-8 shadow-xs">
+          <p className="text-gray-500 mb-4 font-medium text-sm">No active WhatsApp sessions found for your organization.</p>
           <a href="/dashboard/whatsapp">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">
               Connect WhatsApp Session
             </button>
           </a>

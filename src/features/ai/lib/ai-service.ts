@@ -70,7 +70,7 @@ async function fetchCompletions(
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'HTTP-Referer': process.env.APP_URL || 'http://localhost:9091',
-      'X-Title': 'compuX',
+      'X-Title': process.env.NEXT_PUBLIC_APP_NAME || process.env.APP_NAME || 'AutoZoneX Connect',
     },
     body: JSON.stringify({
       model: targetModel,
