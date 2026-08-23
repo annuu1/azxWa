@@ -243,6 +243,8 @@ export async function getWhatsAppMessages(sessionId: string, chatId: string, lim
   }
 }
 
+import { realtimeBus } from '../lib/realtime-bus';
+
 export async function sendWhatsAppMessage(sessionId: string, chatId: string, text: string) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -259,10 +261,6 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
     ).limit(1);
 
     if (contact) {
-      await db.update(contacts)
-        .set({ aiEnabled: false, updatedAt: new Date() })
-        .where(eq(contacts.id, contact.id));
-
       await db.insert(activities).values({
         organizationId: orgId,
         contactId: contact.id,
@@ -271,6 +269,15 @@ export async function sendWhatsAppMessage(sessionId: string, chatId: string, tex
         userId: userSession.userId as string,
       });
     }
+
+    realtimeBus.emitMessageSent(orgId, sessionId, {
+      id: { _serialized: `sent-${Date.now()}` },
+      from: sessionId,
+      to: chatId,
+      fromMe: true,
+      body: text,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
 
     return { success: true, result: response.result };
   } catch (error: any) {
@@ -293,11 +300,16 @@ export async function sendWhatsAppMediaMessage(sessionId: string, chatId: string
       )
     ).limit(1);
 
-    if (contact) {
-      await db.update(contacts)
-        .set({ aiEnabled: false, updatedAt: new Date() })
-        .where(eq(contacts.id, contact.id));
-    }
+    realtimeBus.emitMessageSent(orgId, sessionId, {
+      id: { _serialized: `media-${Date.now()}` },
+      from: sessionId,
+      to: chatId,
+      fromMe: true,
+      body: caption || '[Media Attachment]',
+      hasMedia: true,
+      mediaUrl: mediaUrl.startsWith('data:image') ? mediaUrl : undefined,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
 
     return { success: true, result: response.result };
   } catch (error: any) {

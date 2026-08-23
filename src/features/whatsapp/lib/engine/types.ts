@@ -64,5 +64,5 @@ export interface IWhatsAppEngineAdapter {
   sendMediaMessage(sessionId: string, chatId: string, mediaUrl: string, caption?: string): Promise<any>;
   sendStateTyping(sessionId: string, chatId: string): Promise<any>;
   clearState(sessionId: string, chatId: string): Promise<any>;
-  parseWebhookPayload(body: any): NormalizedWebhookEvent | null;
+  parseWebhookPayload(body: any, overrideSessionId?: string): NormalizedWebhookEvent | null;
 }

@@ -76,16 +76,23 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
     const msgChatId = incomingMsg.chatId || incomingMsg.from;
     if (!msgChatId) return;
 
+    const msgClean = msgChatId.split('@')[0];
+
     setChats(prevChats => {
-      const idx = prevChats.findIndex(c => (c.id?._serialized || c.id) === msgChatId);
-      const isCurrentActive = selectedChat && (selectedChat.id?._serialized || selectedChat.id) === msgChatId;
+      const idx = prevChats.findIndex(c => {
+        const cId = c.id?._serialized || c.id || '';
+        return cId === msgChatId || (msgClean && cId.split('@')[0] === msgClean);
+      });
+
+      const activeId = selectedChat ? (selectedChat.id?._serialized || selectedChat.id || '') : '';
+      const isCurrentActive = Boolean(activeId && (activeId === msgChatId || (msgClean && activeId.split('@')[0] === msgClean)));
       const snippetText = typeof incomingMsg.body === 'string' ? incomingMsg.body : (incomingMsg.hasMedia ? '📷 Attachment' : 'Message');
       const timestampNum = incomingMsg.timestamp || Math.floor(Date.now() / 1000);
 
       if (idx === -1) {
         const newChatEntry = {
           id: { _serialized: msgChatId },
-          name: incomingMsg.pushName || incomingMsg.contact?.name || msgChatId.split('@')[0],
+          name: incomingMsg.pushName || incomingMsg.contact?.name || msgClean,
           isGroup: Boolean(msgChatId.endsWith('@g.us')),
           unreadCount: isCurrentActive || incomingMsg.fromMe ? 0 : 1,
           timestamp: timestampNum,
@@ -187,99 +194,73 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
     }
   }, [selectedChat, fetchMessages, fetchAIStatus]);
 
-  // OpenWA Native Protocol Socket.IO Real-Time Connection
+  // Native Multi-Tenant & Multi-Session EventSource Real-Time Stream
   useEffect(() => {
-    let socketUrl = process.env.NEXT_PUBLIC_WHATSAPP_ENGINE_URL;
-    if (!socketUrl && typeof window !== 'undefined') {
-      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      const host = window.location.hostname;
-      socketUrl = `${proto}//${host}:2785`;
-    }
-    socketUrl = socketUrl || 'http://localhost:2785';
+    if (!selectedSessionId) return;
 
-    const apiKey = 'anurag-dev-api-key';
+    const sseUrl = `/api/whatsapp/events?sessionId=${encodeURIComponent(selectedSessionId)}`;
+    const eventSource = new EventSource(sseUrl);
 
-    let socket: Socket | null = null;
-    try {
-      socket = io(`${socketUrl.replace(/\/+$/, '')}/events`, {
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        auth: { apiKey },
-        extraHeaders: { 'X-API-Key': apiKey },
-      });
+    eventSource.onopen = () => {
+      console.log(`[UnifiedInbox] Multi-Tenant SSE Stream Connected for session "${selectedSessionId}"`);
+    };
 
-      socketRef.current = socket;
+    eventSource.onmessage = (e) => {
+      if (!e.data || e.data.trim().startsWith(':')) return;
+      try {
+        const payload = JSON.parse(e.data);
+        const { event, sessionId: eventSessionId, data: rawMsg } = payload;
 
-      socket.on('connect', () => {
-        console.log('[UnifiedInbox] Socket.IO Connected to OpenWA events gateway');
-        // OpenWA protocol requires sending a subscribe request on the message channel
-        socket?.emit('message', {
-          type: 'subscribe',
-          sessionId: '*',
-          events: ['*'],
+        if (eventSessionId && selectedSessionId && eventSessionId !== selectedSessionId) return;
+        if (!rawMsg) return;
+
+        const chatId = rawMsg.chatId || (rawMsg.fromMe ? rawMsg.to : rawMsg.from);
+        const formattedMsg = {
+          id: { _serialized: rawMsg.id?._serialized || rawMsg.id || `msg-${Date.now()}` },
+          from: rawMsg.from,
+          to: rawMsg.to,
+          fromMe: Boolean(rawMsg.fromMe),
+          body: typeof rawMsg.body === 'string' ? rawMsg.body : (rawMsg.text || rawMsg.caption || ''),
+          timestamp: rawMsg.timestamp || Math.floor(Date.now() / 1000),
+          hasMedia: Boolean(rawMsg.hasMedia || rawMsg.mediaUrl),
+          mediaUrl: rawMsg.mediaUrl,
+          quotedMsg: rawMsg.quotedMsg || null,
+        };
+
+        // 1. Promote chat in sidebar with updated snippet
+        updateChatListWithIncoming({
+          chatId,
+          body: formattedMsg.body,
+          fromMe: formattedMsg.fromMe,
+          timestamp: formattedMsg.timestamp,
+          hasMedia: formattedMsg.hasMedia,
         });
-      });
 
-      socket.on('connect_error', (err) => {
-        console.warn('[UnifiedInbox] Socket.IO connection warning:', err.message);
-      });
+        // 2. Append to current active thread if chat is selected
+        if (selectedChat) {
+          const activeChatId = selectedChat.id?._serialized || selectedChat.id || '';
+          const activeClean = activeChatId.split('@')[0];
+          const incomingClean = (chatId || '').split('@')[0];
 
-      // Handle OpenWA ServerEventEnvelope on message channel
-      socket.on('message', (msgEnvelope: any) => {
-        if (!msgEnvelope || msgEnvelope.type !== 'event' || !msgEnvelope.payload) return;
-
-        const { event, sessionId: eventSessionId, data } = msgEnvelope.payload;
-
-        if (event === 'message.received' || event === 'message.sent' || event === 'message') {
-          const rawMsg: any = data;
-          if (!rawMsg) return;
-
-          const chatId = rawMsg.chatId || rawMsg.from;
-          const formattedMsg = {
-            id: { _serialized: rawMsg.id?._serialized || rawMsg.id },
-            from: rawMsg.from,
-            to: rawMsg.to,
-            fromMe: Boolean(rawMsg.fromMe || rawMsg.isFromMe || event === 'message.sent'),
-            body: typeof rawMsg.body === 'string' ? rawMsg.body : (rawMsg.text || rawMsg.caption || ''),
-            timestamp: rawMsg.timestamp || rawMsg.t || Math.floor(Date.now() / 1000),
-            hasMedia: Boolean(rawMsg.hasMedia || rawMsg.mediaUrl),
-            mediaUrl: rawMsg.mediaUrl,
-            quotedMsg: rawMsg.quotedMsg || rawMsg.quotedMessage ? {
-              id: rawMsg.quotedMsg?.id || rawMsg.quotedMessage?.id,
-              body: rawMsg.quotedMsg?.body || rawMsg.quotedMessage?.body || rawMsg.quotedMsg?.text || '',
-              sender: rawMsg.quotedMsg?.from || rawMsg.quotedMessage?.from || 'Replied Message',
-            } : null,
-          };
-
-          // 1. Promote chat in sidebar with updated snippet
-          updateChatListWithIncoming({
-            chatId,
-            body: formattedMsg.body,
-            fromMe: formattedMsg.fromMe,
-            timestamp: formattedMsg.timestamp,
-            hasMedia: formattedMsg.hasMedia,
-          });
-
-          // 2. Append to current active thread if chat is selected
-          if (selectedChat) {
-            const activeChatId = selectedChat.id?._serialized || selectedChat.id;
-            if (activeChatId === chatId) {
-              setMessages(prev => {
-                const exists = prev.some(m => (m.id?._serialized || m.id) === (formattedMsg.id._serialized || formattedMsg.id));
-                if (exists) return prev;
-                return [...prev, formattedMsg];
-              });
-            }
+          if (activeChatId === chatId || (activeClean && incomingClean && activeClean === incomingClean)) {
+            setMessages(prev => {
+              const exists = prev.some(m => (m.id?._serialized || m.id) === (formattedMsg.id._serialized || formattedMsg.id));
+              if (exists) return prev;
+              return [...prev, formattedMsg];
+            });
           }
         }
-      });
-    } catch (err) {
-      console.warn('[UnifiedInbox] Socket.IO initialization error:', err);
-    }
+      } catch (err) {
+        console.error('[UnifiedInbox] Failed to parse multi-tenant SSE event:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      // EventSource auto-reconnects natively
+    };
 
     return () => {
-      if (socket) socket.disconnect();
+      eventSource.close();
     };
   }, [selectedSessionId, selectedChat, updateChatListWithIncoming]);
 

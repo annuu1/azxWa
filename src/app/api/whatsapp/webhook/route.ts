@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/shared/database';
 import { whatsappSessions, contacts, activities, aiSettings } from '@/shared/database/schema';
-import { eq, and, gte, like } from 'drizzle-orm';
+import { eq, and, gte, like, or } from 'drizzle-orm';
 import { generateAIResponse } from '@/features/ai/lib/ai-service';
 import { getWhatsAppEngine } from '@/features/whatsapp/lib/engine';
-import { sendMessage as engineSendMessage, fetchMessages as engineFetchMessages } from '@/features/whatsapp/lib/whatsapp-service';
+import { sendMessage as engineSendMessage, fetchMessages as engineFetchMessages, getSessions as engineGetSessions } from '@/features/whatsapp/lib/whatsapp-service';
+
+import { realtimeBus } from '@/features/whatsapp/lib/realtime-bus';
 
 export async function POST(req: NextRequest) {
   try {
+    const urlSessionId = req.nextUrl.searchParams.get('sessionId') || undefined;
     const body = await req.json();
+
+    console.log(`\n================== [RAW WEBHOOK RECEIVED] ==================`);
+    console.log(`URL: ${req.url}`);
+    console.log(`Query sessionId: ${urlSessionId}`);
+    console.log(`Payload Body:\n${JSON.stringify(body, null, 2)}`);
+    console.log(`============================================================\n`);
+
     const engine = getWhatsAppEngine();
-    const event = engine.parseWebhookPayload(body);
+    const event = engine.parseWebhookPayload(body, urlSessionId);
 
     if (!event) {
       const dataType = body.dataType || body.event || body.type;
@@ -35,36 +45,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Incoming message ignored on message_create to prevent double reply' });
     }
 
-    // 1. Resolve WhatsApp session to find Organization ID
+    // 1. Strict Multi-Tenant Session Resolution (Match DB Primary Key UUID or unique sessionId)
     let [session] = await db
       .select()
       .from(whatsappSessions)
-      .where(eq(whatsappSessions.sessionId, sessionId))
+      .where(
+        or(
+          eq(whatsappSessions.sessionId, sessionId),
+          eq(whatsappSessions.id, sessionId)
+        )
+      )
       .limit(1);
 
     if (!session) {
-      console.warn(`[Webhook] WhatsApp Session ID "${sessionId}" not matched in database. Trying fallbacks...`);
       const allSessions = await db.select().from(whatsappSessions);
+      session = allSessions.find(
+        (s) => s.sessionId.toLowerCase() === sessionId.toLowerCase() || s.id.toLowerCase() === sessionId.toLowerCase()
+      ) as typeof session;
 
-      const caseInsensitiveMatch = allSessions.find(
-        (s) => s.sessionId.toLowerCase() === sessionId.toLowerCase()
-      );
-
-      if (caseInsensitiveMatch) {
-        session = caseInsensitiveMatch;
-      } else if (allSessions.length > 0) {
-        const connectedSession = allSessions.find((s) => s.status === 'CONNECTED');
-        session = connectedSession || allSessions[0];
-      }
-
-      if (session) {
-        console.log(`[Webhook] Fallback matched session: "${session.sessionId}" (Original requested: "${sessionId}")`);
+      if (!session) {
+        try {
+          const engineSessions = await engineGetSessions();
+          const matchedEngine = engineSessions.find(
+            (es: any) => es.id === sessionId || es.uuid === sessionId || es.name === sessionId
+          );
+          if (matchedEngine) {
+            const matchedKey = (matchedEngine.name || matchedEngine.id).toLowerCase();
+            session = allSessions.find(
+              (s) => s.sessionId.toLowerCase() === matchedKey || s.id.toLowerCase() === matchedKey
+            ) as typeof session;
+          }
+        } catch (err) {
+          console.warn('[Webhook] Engine fallback session lookup error:', err);
+        }
       }
     }
 
     if (!session) {
-      console.warn(`[Webhook] WhatsApp Session ID "${sessionId}" not matched in database and no fallback sessions exist.`);
-      return NextResponse.json({ error: 'Associated session not found' }, { status: 404 });
+      console.warn(`[Webhook] Rejected unmapped session "${sessionId}". No matching tenant session found.`);
+      return NextResponse.json({ error: 'Session not registered for any organization' }, { status: 404 });
     }
 
     const orgId = session.organizationId;
@@ -154,18 +173,28 @@ export async function POST(req: NextRequest) {
       (c) => !c.aiEnabled || Number(c.aiEnabled) === 0 || c.aiEnabled === false
     );
 
-    if (isAiDisabledForContact) {
-      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact number).`);
-      return NextResponse.json({ success: true, message: 'AI auto-reply paused (contact AI toggle is OFF)' });
-    }
-
-    // 7. Log incoming message activity in CRM timeline
+    // 7. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately
     await db.insert(activities).values({
       organizationId: orgId,
       contactId: contact.id,
       type: 'MESSAGE_RECEIVED',
       description: `Incoming message: "${incomingMessage.substring(0, 60)}${incomingMessage.length > 60 ? '...' : ''}"`,
     });
+
+    realtimeBus.emitMessageReceived(orgId, session.sessionId, {
+      id: { _serialized: `msg-${Date.now()}` },
+      from: contactWhatsappId,
+      to: session.sessionId,
+      fromMe: false,
+      body: incomingMessage,
+      timestamp: Math.floor(Date.now() / 1000),
+      pushName: contact.name || contact.pushName || undefined,
+    });
+
+    if (isAiDisabledForContact) {
+      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact number).`);
+      return NextResponse.json({ success: true, message: 'AI auto-reply paused (contact AI toggle is OFF)' });
+    }
 
     // 8. Fetch previous chat history from WhatsApp Engine to construct prompt context (up to 30 messages)
     let history: { role: 'user' | 'model'; content: string }[] = [];
@@ -200,7 +229,16 @@ export async function POST(req: NextRequest) {
       });
 
       // 11. Send message via WhatsApp Engine
-      await engineSendMessage(sessionId, contactWhatsappId, aiResponse);
+      await engineSendMessage(session.sessionId, contactWhatsappId, aiResponse);
+
+      realtimeBus.emitMessageSent(orgId, session.sessionId, {
+        id: { _serialized: `ai-${Date.now()}` },
+        from: session.sessionId,
+        to: contactWhatsappId,
+        fromMe: true,
+        body: aiResponse,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
     }
 
     return NextResponse.json({ success: true });

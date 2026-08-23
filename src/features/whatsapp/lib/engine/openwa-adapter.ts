@@ -81,27 +81,39 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
   }
 
   /**
-   * Automatically registers application webhook with OpenWA engine for live event streaming
+   * Automatically registers application dynamic webhook with OpenWA engine for live event streaming
+   * Uses unique session UUID to guarantee multi-tenant isolation even if friendly session names overlap.
    */
   private async ensureWebhookRegistered(targetId: string): Promise<void> {
     try {
-      const targetWebhookUrl = `${process.env.APP_URL || 'http://localhost:9091'}/api/whatsapp/webhook`;
-      const webhooks = await this.fetchApi(`/api/sessions/${targetId}/webhooks`).catch(() => []);
+      const appUrl = (process.env.APP_URL || 'http://localhost:9091').replace(/\/+$/, '');
+      const targetWebhookUrl = `${appUrl}/api/whatsapp/webhook?sessionId=${encodeURIComponent(targetId)}`;
       
-      const exists = Array.isArray(webhooks) && webhooks.some((w: any) => w.url === targetWebhookUrl && w.active);
-      if (!exists) {
+      const webhooks = await this.fetchApi(`/api/sessions/${targetId}/webhooks`).catch(() => []);
+      let hasValidWebhook = false;
+
+      if (Array.isArray(webhooks)) {
+        for (const w of webhooks) {
+          if (w.url === targetWebhookUrl && w.active) {
+            hasValidWebhook = true;
+          } else if (w.url && w.url.includes('/api/whatsapp/webhook')) {
+            await this.fetchApi(`/api/sessions/${targetId}/webhooks/${w.id}`, { method: 'DELETE' }).catch(() => null);
+            console.log(`[OpenWAAdapter] Deleted legacy/mismatched webhook (${w.url}) for session UUID ${targetId}`);
+          }
+        }
+      }
+
+      if (!hasValidWebhook) {
         await this.fetchApi(`/api/sessions/${targetId}/webhooks`, {
           method: 'POST',
           body: JSON.stringify({
             url: targetWebhookUrl,
-            events: ['*'],
-            active: true,
           }),
         });
-        console.log(`[OpenWAAdapter] Auto-registered webhook for session ${targetId}: ${targetWebhookUrl}`);
+        console.log(`[OpenWAAdapter] Auto-registered unique UUID session webhook for ${targetId}: ${targetWebhookUrl}`);
       }
-    } catch (err) {
-      console.warn(`[OpenWAAdapter] ensureWebhookRegistered warning for ${targetId}:`, err);
+    } catch (err: any) {
+      console.warn(`[OpenWAAdapter] ensureWebhookRegistered warning for ${targetId}:`, err.message || err);
     }
   }
 
@@ -118,8 +130,6 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         if (rawStatus === 'ready' || rawStatus === 'authenticated') {
           state = 'CONNECTED';
           ready = true;
-          // Auto-ensure webhook registration for connected session
-          this.ensureWebhookRegistered(s.id);
         } else if (rawStatus === 'qr_ready') {
           state = 'QR_READY';
         } else if (rawStatus === 'initializing') {
@@ -131,6 +141,9 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         } else if (rawStatus === 'failed') {
           state = 'FAILED';
         }
+
+        // Auto-ensure per-session unique UUID webhook is registered with OpenWA
+        this.ensureWebhookRegistered(s.id);
 
         return {
           id: s.name || s.id,
@@ -345,11 +358,11 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     }).catch(() => null);
   }
 
-  parseWebhookPayload(body: any): NormalizedWebhookEvent | null {
+  parseWebhookPayload(body: any, overrideSessionId?: string): NormalizedWebhookEvent | null {
     if (!body) return null;
 
     const eventName = body.event || body.eventType || body.dataType || body.type;
-    const sessionId = body.sessionId || body.session || body.id || 'default';
+    const sessionId = overrideSessionId || body.sessionId || body.session || body.id || 'default';
     const payloadData = body.data || body.payload || body;
 
     const isMessageEvent =
