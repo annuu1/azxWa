@@ -294,22 +294,49 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
       );
       const list = Array.isArray(data) ? data : data.messages || [];
 
-      return list.map((m: any) => ({
-        id: { _serialized: m.id?._serialized || m.id },
-        from: m.from || m.sender?.id || m.sender,
-        to: m.to || m.recipient,
-        fromMe: Boolean(m.fromMe || m.isFromMe),
-        body: m.body || m.text || m.caption || '',
-        timestamp: m.timestamp || m.t || Math.floor(Date.now() / 1000),
-        isGroup: Boolean(m.isGroup || (m.chatId && m.chatId.endsWith('@g.us'))),
-        hasMedia: Boolean(m.hasMedia || m.mediaUrl || m.mimetype),
-        mediaUrl: m.mediaUrl || (m.body?.startsWith('data:image') ? m.body : undefined),
-        quotedMsg: m.quotedMsg || m.quotedMessage ? {
-          id: m.quotedMsg?.id || m.quotedMessage?.id,
-          body: m.quotedMsg?.body || m.quotedMessage?.body || m.quotedMsg?.text || '',
-          sender: m.quotedMsg?.from || m.quotedMessage?.from || 'Replied Message',
-        } : null,
-      }));
+      return list.map((m: any) => {
+        const mediaObj = m.media || (m.hasMedia || m.mimetype ? {
+          mimetype: m.mimetype,
+          filename: m.filename,
+          sizeBytes: m.sizeBytes,
+          data: m.mediaData || m.data,
+        } : undefined);
+
+        const reactionsObj = m.reactions || m.metadata?.reactions || {};
+
+        return {
+          id: { _serialized: m.id?._serialized || m.id },
+          waMessageId: m.id?._serialized || m.id,
+          from: m.from || m.sender?.id || m.sender,
+          to: m.to || m.recipient,
+          fromMe: Boolean(m.fromMe || m.isFromMe),
+          body: m.body || m.text || m.caption || '',
+          type: m.type || (mediaObj ? (mediaObj.mimetype?.startsWith('image/') ? 'image' : mediaObj.mimetype?.startsWith('video/') ? 'video' : mediaObj.mimetype?.startsWith('audio/') ? 'audio' : 'document') : 'text'),
+          timestamp: m.timestamp || m.t || Math.floor(Date.now() / 1000),
+          status: m.status || (m.fromMe ? 'sent' : 'delivered'),
+          isGroup: Boolean(m.isGroup || (m.chatId && m.chatId.endsWith('@g.us'))),
+          hasMedia: Boolean(m.hasMedia || m.mediaUrl || m.mimetype || mediaObj),
+          mediaUrl: m.mediaUrl || (mediaObj?.data ? (mediaObj.data.startsWith('data:') ? mediaObj.data : `data:${mediaObj.mimetype || 'image/jpeg'};base64,${mediaObj.data}`) : undefined),
+          media: mediaObj,
+          reactions: reactionsObj,
+          metadata: {
+            reactions: reactionsObj,
+            media: mediaObj,
+            quotedMessage: m.quotedMsg || m.quotedMessage ? {
+              id: m.quotedMsg?.id || m.quotedMessage?.id,
+              body: m.quotedMsg?.body || m.quotedMessage?.body || m.quotedMsg?.text || '',
+              sender: m.quotedMsg?.from || m.quotedMessage?.from || 'Replied Message',
+            } : undefined,
+          },
+          quotedMsg: m.quotedMsg || m.quotedMessage ? {
+            id: m.quotedMsg?.id || m.quotedMessage?.id,
+            body: m.quotedMsg?.body || m.quotedMessage?.body || m.quotedMsg?.text || '',
+            sender: m.quotedMsg?.from || m.quotedMessage?.from || 'Replied Message',
+          } : null,
+          chatName: m.chatName || m.pushName || m.contact?.name || m.contact?.pushName || undefined,
+          author: m.author || m.sender || undefined,
+        };
+      });
     } catch (err) {
       console.error('[OpenWAAdapter] fetchMessages error:', err);
       return [];
@@ -340,6 +367,68 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
         caption: caption || '',
       }),
     });
+  }
+
+  async sendMedia(
+    sessionId: string,
+    chatId: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document' | 'sticker',
+    payload: { base64?: string; url?: string; mimetype: string; filename?: string; caption?: string; quotedMessageId?: string }
+  ): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/messages/send-${mediaType}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        ...payload,
+      }),
+    });
+  }
+
+  async reactMessage(sessionId: string, chatId: string, messageId: string, emoji: string): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/messages/react`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        messageId,
+        emoji,
+      }),
+    });
+  }
+
+  async deleteMessage(sessionId: string, chatId: string, messageId: string, forEveryone = true): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/messages/delete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        messageId,
+        forEveryone,
+      }),
+    });
+  }
+
+  async replyMessage(sessionId: string, chatId: string, quotedMessageId: string, text: string): Promise<any> {
+    const targetId = await this.resolveSessionId(sessionId);
+    return await this.fetchApi(`/api/sessions/${targetId}/messages/reply`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        quotedMessageId,
+        text,
+      }),
+    });
+  }
+
+  async getProfilePicture(sessionId: string, contactId: string): Promise<string | null> {
+    try {
+      const targetId = await this.resolveSessionId(sessionId);
+      const data = await this.fetchApi(`/api/sessions/${targetId}/contacts/${encodeURIComponent(contactId)}/profile-picture`);
+      return data.url || null;
+    } catch {
+      return null;
+    }
   }
 
   async sendStateTyping(sessionId: string, chatId: string): Promise<any> {

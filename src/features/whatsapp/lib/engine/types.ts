@@ -62,6 +62,16 @@ export interface IWhatsAppEngineAdapter {
   fetchMessages(sessionId: string, chatId: string, limit?: number): Promise<any[]>;
   sendMessage(sessionId: string, chatId: string, text: string): Promise<any>;
   sendMediaMessage(sessionId: string, chatId: string, mediaUrl: string, caption?: string): Promise<any>;
+  sendMedia?(
+    sessionId: string,
+    chatId: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document' | 'sticker',
+    payload: { base64?: string; url?: string; mimetype: string; filename?: string; caption?: string; quotedMessageId?: string }
+  ): Promise<any>;
+  reactMessage?(sessionId: string, chatId: string, messageId: string, emoji: string): Promise<any>;
+  deleteMessage?(sessionId: string, chatId: string, messageId: string, forEveryone?: boolean): Promise<any>;
+  replyMessage?(sessionId: string, chatId: string, quotedMessageId: string, text: string): Promise<any>;
+  getProfilePicture?(sessionId: string, contactId: string): Promise<string | null>;
   sendStateTyping(sessionId: string, chatId: string): Promise<any>;
   clearState(sessionId: string, chatId: string): Promise<any>;
   parseWebhookPayload(body: any, overrideSessionId?: string): NormalizedWebhookEvent | null;

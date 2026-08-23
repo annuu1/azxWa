@@ -88,6 +88,51 @@ export async function sendMediaMessage(sessionId: string, chatId: string, mediaU
   return await engine.sendMediaMessage(sessionId, chatId, mediaUrl, caption);
 }
 
+export async function sendMedia(
+  sessionId: string,
+  chatId: string,
+  mediaType: 'image' | 'video' | 'audio' | 'document' | 'sticker',
+  payload: { base64?: string; url?: string; mimetype: string; filename?: string; caption?: string; quotedMessageId?: string }
+) {
+  const engine = getWhatsAppEngine();
+  if (engine.sendMedia) {
+    return await engine.sendMedia(sessionId, chatId, mediaType, payload);
+  }
+  return await engine.sendMediaMessage(sessionId, chatId, payload.url || (payload.base64 ? `data:${payload.mimetype};base64,${payload.base64}` : ''), payload.caption);
+}
+
+export async function reactMessage(sessionId: string, chatId: string, messageId: string, emoji: string) {
+  const engine = getWhatsAppEngine();
+  if (engine.reactMessage) {
+    return await engine.reactMessage(sessionId, chatId, messageId, emoji);
+  }
+  return { success: false, error: 'Reactions not supported on this engine' };
+}
+
+export async function deleteMessage(sessionId: string, chatId: string, messageId: string, forEveryone = true) {
+  const engine = getWhatsAppEngine();
+  if (engine.deleteMessage) {
+    return await engine.deleteMessage(sessionId, chatId, messageId, forEveryone);
+  }
+  return { success: false, error: 'Message deletion not supported on this engine' };
+}
+
+export async function replyMessage(sessionId: string, chatId: string, quotedMessageId: string, text: string) {
+  const engine = getWhatsAppEngine();
+  if (engine.replyMessage) {
+    return await engine.replyMessage(sessionId, chatId, quotedMessageId, text);
+  }
+  return await engine.sendMessage(sessionId, chatId, text);
+}
+
+export async function getProfilePicture(sessionId: string, contactId: string): Promise<string | null> {
+  const engine = getWhatsAppEngine();
+  if (engine.getProfilePicture) {
+    return await engine.getProfilePicture(sessionId, contactId);
+  }
+  return null;
+}
+
 export async function sendStateTyping(sessionId: string, chatId: string) {
   const engine = getWhatsAppEngine();
   return await engine.sendStateTyping(sessionId, chatId);

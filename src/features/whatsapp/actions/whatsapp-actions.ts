@@ -16,7 +16,12 @@ import {
   getChats as engineGetChats,
   fetchMessages as engineFetchMessages,
   sendMessage as engineSendMessage,
-  sendMediaMessage as engineSendMediaMessage
+  sendMediaMessage as engineSendMediaMessage,
+  sendMedia as engineSendMedia,
+  reactMessage as engineReactMessage,
+  deleteMessage as engineDeleteMessage,
+  replyMessage as engineReplyMessage,
+  getProfilePicture as engineGetProfilePicture
 } from '../lib/whatsapp-service';
 import { revalidatePath } from 'next/cache';
 import { eq, and } from 'drizzle-orm';
@@ -312,6 +317,139 @@ export async function sendWhatsAppMediaMessage(sessionId: string, chatId: string
     });
 
     return { success: true, result: response.result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function sendWhatsAppRichMedia(
+  sessionId: string,
+  chatId: string,
+  mediaType: 'image' | 'video' | 'audio' | 'document' | 'sticker',
+  payload: { base64?: string; url?: string; mimetype: string; filename?: string; caption?: string; quotedMessageId?: string }
+) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const response = await engineSendMedia(sessionId, chatId, mediaType, payload);
+
+    const [contact] = await db.select().from(contacts).where(
+      and(
+        eq(contacts.whatsappId, chatId),
+        eq(contacts.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (contact && (payload.caption || payload.filename)) {
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: contact.id,
+        type: 'MESSAGE_SENT',
+        description: `Outgoing ${mediaType}: "${payload.caption || payload.filename || mediaType}"`,
+        userId: userSession.userId as string,
+      });
+    }
+
+    const messageId = response?.messageId || response?.id || `media-${Date.now()}`;
+
+    realtimeBus.emitMessageSent(orgId, sessionId, {
+      id: { _serialized: messageId },
+      from: sessionId,
+      to: chatId,
+      fromMe: true,
+      body: payload.caption || payload.filename || (mediaType === 'image' ? '📷 Photo' : mediaType === 'video' ? '📹 Video' : mediaType === 'audio' ? '🎵 Audio' : '📎 Document'),
+      hasMedia: true,
+      mediaUrl: payload.url || (payload.base64 ? (payload.base64.startsWith('data:') ? payload.base64 : `data:${payload.mimetype};base64,${payload.base64}`) : undefined),
+      media: {
+        mimetype: payload.mimetype,
+        filename: payload.filename,
+      },
+      timestamp: Math.floor(Date.now() / 1000),
+      quotedMsg: payload.quotedMessageId ? { id: payload.quotedMessageId } : undefined,
+    });
+
+    return { success: true, messageId, result: response };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function reactToWhatsAppMessage(sessionId: string, chatId: string, messageId: string, emoji: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    await engineReactMessage(sessionId, chatId, messageId, emoji);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteWhatsAppMessage(sessionId: string, chatId: string, messageId: string, forEveryone = true) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    await engineDeleteMessage(sessionId, chatId, messageId, forEveryone);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function replyToWhatsAppMessage(sessionId: string, chatId: string, quotedMessageId: string, text: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const response = await engineReplyMessage(sessionId, chatId, quotedMessageId, text);
+
+    const [contact] = await db.select().from(contacts).where(
+      and(
+        eq(contacts.whatsappId, chatId),
+        eq(contacts.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (contact) {
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: contact.id,
+        type: 'MESSAGE_SENT',
+        description: `Outgoing reply: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`,
+        userId: userSession.userId as string,
+      });
+    }
+
+    const msgId = response?.messageId || response?.id || `reply-${Date.now()}`;
+
+    realtimeBus.emitMessageSent(orgId, sessionId, {
+      id: { _serialized: msgId },
+      from: sessionId,
+      to: chatId,
+      fromMe: true,
+      body: text,
+      timestamp: Math.floor(Date.now() / 1000),
+      quotedMsg: { id: quotedMessageId },
+    });
+
+    return { success: true, messageId: msgId, result: response };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getContactProfilePictureAction(sessionId: string, contactId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+
+  try {
+    const url = await engineGetProfilePicture(sessionId, contactId);
+    return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
