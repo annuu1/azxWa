@@ -1,0 +1,3 @@
+## 2024-05-24 - O(n^2) nested filtering inside components
+**Learning:** In the `PipelineBoard` component (`src/features/crm/components/pipeline-board.tsx`), grouping leads by stage was done using a `.filter` array lookup inside a `.map` loop (`stages.map`). This led to an `O(stages * leads)` complexity which re-ran on every state update, such as when changing a lead's stage and updating temporary UI state (`isItemLoading`).
+**Action:** Always check React mapping functions for nested array iterations, like `filter` or `find`. These should be replaced by a single-pass `useMemo` grouping function mapping an ID to the corresponding array of items, resulting in `O(N)` lookup performance and memoizing the expensive calculation unless the root items array actually changes.
