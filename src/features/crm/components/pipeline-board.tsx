@@ -50,7 +50,7 @@ export default function PipelineBoard({
 
   // Group leads by their stageId
   const leadsByStage = useMemo(() => {
-    const grouped: Record<string, any[]> = {};
+    const grouped: Record<string, typeof leads> = {};
     leads.forEach(lead => {
       if (!grouped[lead.stageId]) {
         grouped[lead.stageId] = [];
