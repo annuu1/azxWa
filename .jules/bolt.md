@@ -1,0 +1,3 @@
+## 2026-08-26 - Optimizing Array Filtering in React
+**Learning:** Found an anti-pattern in `src/features/crm/components/contacts-list.tsx` where a list of contacts was being filtered on every render, and string casing functions (`.toLowerCase()`) were called repeatedly for every item inside the filter callback.
+**Action:** Always check array `.filter()` and `.map()` methods in frequently rendered components. Hoist invariant calculations (like converting a search term to lowercase) outside the iteration callback, and memoize the result with `useMemo` if the data source or filter parameters haven't changed.
