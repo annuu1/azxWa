@@ -1,0 +1,3 @@
+## 2025-02-28 - [O(N*M) Rendering Bottleneck in PipelineBoard]
+**Learning:** Found an $O(N \times M)$ rendering bottleneck in `PipelineBoard` component (`src/features/crm/components/pipeline-board.tsx`), where the entire `leads` array ($N$) is filtered for each of its pipeline `stages` ($M$) on every single render. Grouping the leads beforehand using `useMemo` significantly reduces unnecessary computations and potential performance issues without changing behavior.
+**Action:** When finding loops or maps inside functional components, verify if they perform an $O(N)$ lookup operation for each item on every render, especially inside another loop, and refactor using `useMemo` with an $O(1)$ lookup hash map for optimized performance.
