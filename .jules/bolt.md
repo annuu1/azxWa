@@ -1,0 +1,3 @@
+## 2024-05-18 - Hoisting and memoizing expensive collection operations
+**Learning:** React component derived states that iterate over large lists (e.g. `filteredContacts`) often call operations like `.toLowerCase()` repeatedly inside `.filter()` loops on every re-render caused by unrelated state changes.
+**Action:** Always verify if expensive or frequently-called string/array operations can be hoisted outside the loop and memoized via `useMemo` to avoid redundant work.
