@@ -1,0 +1,3 @@
+## 2024-09-07 - Inefficient List Filtering on Render
+**Learning:** In `src/features/crm/components/contacts-list.tsx`, large contact lists were being filtered on every single render. Additionally, string `.toLowerCase()` operations on the search term were executed inside the `O(N)` loop rather than being hoisted, further degrading performance when interacting with state that triggers renders (like clicking the "Qualify" button).
+**Action:** When working with large lists, particularly in CRM features, use `useMemo` to cache expensive filter computations and always hoist constants or stable computations (like `.toLowerCase()` on the search term) outside the `.filter` loop to prevent unnecessary recalculations.
