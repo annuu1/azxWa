@@ -1,0 +1,3 @@
+## 2024-06-25 - Prevent O(N*M) Filtering on Render in Pipeline Components
+**Learning:** In the CRM feature's Pipeline Board, component state changes (`loadingLeadId`) trigger full re-renders, recalculating `leads.filter(l => l.stageId === stageId)` for every stage column. This O(stages * leads) pattern happens frequently in Kanban-style boards.
+**Action:** When identifying performance opportunities in drag-and-drop or pipeline components, pre-group items into a `Map` wrapped in a `useMemo` dependent on the source array. This ensures an O(1) lookup during high-frequency renders triggered by drag states or local loading indicators.
