@@ -134,7 +134,17 @@ export async function generateAIResponse(
     console.error('[AI Service] KB retrieval error:', kbErr.message);
   }
 
-  const systemPrompt = settings.systemPrompt + kbContext;
+  const agentName = (settings.agentName && settings.agentName.trim()) || 'Riya';
+  const companyName = (settings.companyName && settings.companyName.trim()) || 'Autozonex';
+
+  const personaContext = `You are ${agentName}, representing ${companyName}.
+RULES:
+- Never use placeholder brackets like [Your Name], [Your Company], [Company], [Product], etc.
+- If introducing yourself, say "I am ${agentName} from ${companyName}".
+- Keep replies concise, helpful, friendly, and natural for WhatsApp conversations.
+\n`;
+
+  const systemPrompt = personaContext + settings.systemPrompt + kbContext;
   const primaryProvider = settings.provider;
   let primaryModel = settings.model;
   let primaryApiKey = settings.apiKey || process.env.AI_API_KEY || '';

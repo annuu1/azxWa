@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw, Edit3 } from 'lucide-react';
+import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw, Edit3, User, Building2 } from 'lucide-react';
 import { getAISettingsData, saveAISettings } from '../actions/ai-actions';
 
 export default function AISettingsPanel() {
@@ -20,6 +20,8 @@ export default function AISettingsPanel() {
   const [customModelName, setCustomModelName] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [agentName, setAgentName] = useState('Riya');
+  const [companyName, setCompanyName] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   
   // UI States
@@ -50,9 +52,11 @@ export default function AISettingsPanel() {
         setEnabled(data.settings.enabled);
         setProvider(data.settings.provider);
         setApiKey(data.settings.apiKey || '');
+        setAgentName(data.settings.agentName || 'Riya');
+        setCompanyName(data.settings.companyName || '');
         setSystemPrompt(data.settings.systemPrompt);
 
-        const currentModel = data.settings.model || 'qwen/qwen3.6-27b';
+        const currentModel = data.settings.model || 'openai/gpt-oss-120b';
         const activePresets = data.settings.provider === 'groq' ? groqModels : openrouterModels;
         const matchingPreset = activePresets.find(m => m.value === currentModel);
 
@@ -80,7 +84,7 @@ export default function AISettingsPanel() {
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
     if (newProvider === 'groq') {
-      setSelectedPreset('qwen/qwen3.6-27b');
+      setSelectedPreset('openai/gpt-oss-120b');
       setIsCustomMode(false);
     } else {
       setSelectedPreset('meta-llama/llama-3.3-70b-instruct');
@@ -120,7 +124,9 @@ export default function AISettingsPanel() {
         provider,
         finalModel,
         apiKey || null,
-        systemPrompt
+        systemPrompt,
+        agentName.trim() || 'Riya',
+        companyName.trim() || undefined
       );
 
       if (res.success) {
@@ -155,7 +161,7 @@ export default function AISettingsPanel() {
           <div>
             <CardTitle className="text-xl">AI Assistant Configuration</CardTitle>
             <CardDescription>
-              Deploy an AI chatbot to automate custom WhatsApp client conversations for your organization.
+              Configure your AI representative persona, company branding, models, and custom WhatsApp conversation rules.
             </CardDescription>
           </div>
         </div>
@@ -193,6 +199,49 @@ export default function AISettingsPanel() {
                 onChange={(e) => setEnabled(e.target.checked)}
                 className="w-11 h-6 bg-gray-200 rounded-full appearance-none cursor-pointer checked:bg-blue-600 relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all checked:after:translate-x-full"
               />
+            </div>
+          </div>
+
+          {/* Agent Persona & Company Identity Section */}
+          <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <User className="w-4 h-4 text-blue-600" />
+              <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">AI Persona & Organization Identity</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-blue-500" /> AI Agent Name / Persona
+                </label>
+                <Input
+                  type="text"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  placeholder="e.g. Riya (Default)"
+                  className="bg-white text-xs font-medium"
+                  required
+                />
+                <p className="text-[11px] text-gray-500">
+                  The name your AI representative uses when greeting and introducing itself (Default: <strong>Riya</strong>).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-blue-500" /> Company / Brand Name
+                </label>
+                <Input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Autozonex Technologies"
+                  className="bg-white text-xs font-medium"
+                />
+                <p className="text-[11px] text-gray-500">
+                  Used in messages to present your business (e.g. "I'm Riya from [Company]").
+                </p>
+              </div>
             </div>
           </div>
 

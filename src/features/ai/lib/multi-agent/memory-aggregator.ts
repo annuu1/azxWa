@@ -9,12 +9,15 @@ import {
   pipelines, 
   leadIntelligence, 
   users, 
-  whatsappSessions 
+  whatsappSessions,
+  organizations,
+  aiSettings
 } from "@/shared/database/schema";
 import { eq, desc, asc, and } from "drizzle-orm";
 import { fetchMessages } from "@/features/whatsapp/lib/whatsapp-service";
 import { queryKnowledgeBase } from "@/features/knowledge-base/lib/kb-service";
 import { LeadMemoryContext, HumanNoteContext, ChatMessageContext } from "./types";
+import { extractCleanContactName } from "./utils/name-cleaner";
 
 export async function aggregateLeadMemory(orgId: string, leadId: string): Promise<LeadMemoryContext | null> {
   const [leadRecord] = await db.select().from(leads).where(and(eq(leads.id, leadId), eq(leads.organizationId, orgId))).limit(1);
@@ -100,13 +103,33 @@ export async function aggregateLeadMemory(orgId: string, leadId: string): Promis
     .where(eq(leadIntelligence.leadId, leadId))
     .limit(1);
 
+  // Fetch AI Settings & Organization details for Agent Persona and Company Branding
+  const [aiSettingRecord] = await db
+    .select()
+    .from(aiSettings)
+    .where(eq(aiSettings.organizationId, orgId))
+    .limit(1);
+
+  const [orgRecord] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+
+  const agentName = (aiSettingRecord?.agentName && aiSettingRecord.agentName.trim()) || 'Riya';
+  const companyName = (aiSettingRecord?.companyName && aiSettingRecord.companyName.trim()) || orgRecord?.name || 'Autozonex';
+
+  // Intelligently parse raw contact name (e.g. "sumit sir csl" -> greeting: "Sumit Sir", clean: "Sumit")
+  const rawContactName = contactRecord.name || contactRecord.pushName || contactRecord.whatsappId;
+  const nameDetails = extractCleanContactName(rawContactName);
+
   let relevantKnowledgeContext = "";
   try {
     const lastCustomerMsg = chatHistory.filter(m => m.role === "customer").pop();
     const queryPhrases = [
       lastCustomerMsg?.body || '',
       humanNotes[0]?.content || '',
-      contactRecord.name || ''
+      nameDetails.cleanFullName || ''
     ].filter(Boolean).join(' ');
 
     if (queryPhrases.trim()) {
@@ -122,7 +145,11 @@ export async function aggregateLeadMemory(orgId: string, leadId: string): Promis
   return {
     leadId: leadRecord.id,
     contactId: contactRecord.id,
-    contactName: contactRecord.name || contactRecord.pushName || contactRecord.whatsappId,
+    contactName: rawContactName,
+    cleanContactName: nameDetails.cleanFullName,
+    greetingName: nameDetails.greetingName,
+    agentName,
+    companyName,
     whatsappId: contactRecord.whatsappId,
     currentStageId: leadRecord.stageId,
     currentStageName,

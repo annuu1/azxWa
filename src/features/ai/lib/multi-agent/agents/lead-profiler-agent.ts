@@ -25,7 +25,7 @@ You must extract BANT facts (Budget, Authority, Need, Timeline), client sentimen
 Return ONLY a valid JSON object.`;
 
   const userPrompt = `Lead Details:
-- Contact Name: ${context.contactName}
+- Contact Name: ${context.cleanContactName} (Saved as: "${context.contactName}", Greeting: "${context.greetingName}")
 - WhatsApp Number: ${context.whatsappId}
 - Current Pipeline Stage: ${context.currentStageName || 'New'}
 - Available Stages in Pipeline: ${stagesText}

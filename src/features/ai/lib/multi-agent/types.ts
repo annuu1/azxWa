@@ -31,6 +31,10 @@ export interface LeadMemoryContext {
   leadId: string;
   contactId: string;
   contactName: string;
+  cleanContactName: string;
+  greetingName: string;
+  agentName: string;
+  companyName: string;
   whatsappId: string;
   currentStageId?: string | null;
   currentStageName?: string;

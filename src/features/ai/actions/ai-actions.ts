@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/shared/database';
-import { aiSettings, contacts, activities, leads } from '@/shared/database/schema';
+import { aiSettings, contacts, activities, leads, organizations } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { eq, and, like } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -27,6 +27,12 @@ export async function getAISettingsData() {
       .where(eq(aiSettings.organizationId, orgId))
       .limit(1);
 
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+
     if (!settings) {
       [settings] = await db
         .insert(aiSettings)
@@ -36,6 +42,8 @@ export async function getAISettingsData() {
           provider: 'groq',
           model: 'openai/gpt-oss-120b',
           apiKey: null,
+          agentName: 'Riya',
+          companyName: org?.name || 'Autozonex',
           systemPrompt: 'You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.',
         })
         .returning();
@@ -43,6 +51,8 @@ export async function getAISettingsData() {
 
     const maskedSettings = {
       ...settings,
+      agentName: settings.agentName || 'Riya',
+      companyName: settings.companyName || org?.name || 'Autozonex',
       apiKey: settings.apiKey ? '••••••••••••••••' : '',
     };
 
@@ -60,7 +70,9 @@ export async function saveAISettings(
   provider: string,
   model: string,
   apiKey: string | null,
-  systemPrompt: string
+  systemPrompt: string,
+  agentName?: string,
+  companyName?: string
 ) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -78,6 +90,9 @@ export async function saveAISettings(
       finalApiKey = existing?.apiKey || null;
     }
 
+    const finalAgentName = (agentName && agentName.trim()) || 'Riya';
+    const finalCompanyName = companyName?.trim() || null;
+
     await db
       .insert(aiSettings)
       .values({
@@ -86,6 +101,8 @@ export async function saveAISettings(
         provider,
         model,
         apiKey: finalApiKey || null,
+        agentName: finalAgentName,
+        companyName: finalCompanyName,
         systemPrompt,
       })
       .onConflictDoUpdate({
@@ -95,6 +112,8 @@ export async function saveAISettings(
           provider,
           model,
           apiKey: finalApiKey || null,
+          agentName: finalAgentName,
+          companyName: finalCompanyName,
           systemPrompt,
           updatedAt: new Date(),
         },

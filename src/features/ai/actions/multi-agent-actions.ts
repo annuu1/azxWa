@@ -10,6 +10,7 @@ import {
   leadIntelligence, 
   aiActionProposals, 
   pipelineStages,
+  pipelines,
   whatsappSessions 
 } from '@/shared/database/schema';
 import { eq, and, desc, asc, inArray, sql, isNotNull } from 'drizzle-orm';
@@ -411,7 +412,16 @@ export async function getAiDashboardOverview() {
     const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.organizationId, orgId)).limit(1);
 
     // 7. Pipeline Stages
-    const stages = await db.select().from(pipelineStages).where(eq(pipelineStages.organizationId, orgId)).orderBy(asc(pipelineStages.order));
+    const stages = await db
+      .select({
+        id: pipelineStages.id,
+        name: pipelineStages.name,
+        position: pipelineStages.position,
+      })
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(eq(pipelines.organizationId, orgId))
+      .orderBy(asc(pipelineStages.position));
 
     // 8. Active WhatsApp Session
     const sessions = await db.select().from(whatsappSessions).where(eq(whatsappSessions.organizationId, orgId));
