@@ -101,10 +101,22 @@ async function processQueueJobs() {
   console.log(`[Queue Worker] Found ${pendingJobs.length} pending jobs. Processing...`);
 
   for (const job of pendingJobs) {
-    // Mark as processing
-    await db.update(queueJobs)
+    // Atomic state claim: Only this worker process continues if it successfully transitions status PENDING -> PROCESSING
+    const [claimed] = await db
+      .update(queueJobs)
       .set({ status: 'PROCESSING', updatedAt: new Date() })
-      .where(eq(queueJobs.id, job.id));
+      .where(
+        and(
+          eq(queueJobs.id, job.id),
+          eq(queueJobs.status, 'PENDING')
+        )
+      )
+      .returning({ id: queueJobs.id });
+
+    if (!claimed) {
+      // Another worker/cluster instance claimed this job concurrently
+      continue;
+    }
 
     if (job.campaignId) {
       await updateCampaignStatus(job.campaignId);

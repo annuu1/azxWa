@@ -5,7 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { X, RefreshCw, Megaphone, Calendar, HelpCircle, Eye } from 'lucide-react';
-import { createCampaign, getTemplatesList } from '../actions/campaign-actions';
+import { createCampaign, getTemplatesList, getCampaignAudienceFilters } from '../actions/campaign-actions';
 
 interface CreateCampaignModalProps {
   onClose: () => void;
@@ -26,6 +26,9 @@ export default function CreateCampaignModal({
   const [name, setName] = useState('');
   const [messageTemplate, setMessageTemplate] = useState('');
   const [targetTagId, setTargetTagId] = useState<string>('all');
+  const [targetStageId, setTargetStageId] = useState<string>('all');
+  const [minLeadScore, setMinLeadScore] = useState<number>(0);
+  const [stages, setStages] = useState<any[]>([]);
   const [sessionId, setSessionId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [sendType, setSendType] = useState<'immediate' | 'scheduled'>('immediate');
@@ -44,17 +47,23 @@ export default function CreateCampaignModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
   useEffect(() => {
-    const fetchTemplates = async () => {
+    const fetchTemplatesAndStages = async () => {
       try {
-        const res = await getTemplatesList();
-        if (res.success) {
-          setTemplates(res.templates || []);
+        const [tplRes, stagesRes] = await Promise.all([
+          getTemplatesList(),
+          getCampaignAudienceFilters()
+        ]);
+        if (tplRes.success) {
+          setTemplates(tplRes.templates || []);
+        }
+        if (stagesRes.success) {
+          setStages(stagesRes.stages || []);
         }
       } catch (err) {
         console.error(err);
       }
     };
-    fetchTemplates();
+    fetchTemplatesAndStages();
   }, []);
 
   const handleTemplateSelect = (templateId: string) => {
@@ -67,6 +76,10 @@ export default function CreateCampaignModal({
     }
   };
 
+  const handleInsertVariable = (variableKey: string) => {
+    setMessageTemplate(prev => prev + ` {{${variableKey}}}`);
+  };
+
   // Live compile mockup
   const [compiledPreview, setCompiledPreview] = useState('');
 
@@ -74,6 +87,10 @@ export default function CreateCampaignModal({
     name: 'John Doe',
     pushName: 'JohnD',
     whatsappId: '12025550108@c.us',
+    company: 'Acme Corp',
+    leadScore: 85,
+    stageName: 'Qualified',
+    buyingIntent: 'HIGH',
   };
 
   useEffect(() => {
@@ -82,6 +99,10 @@ export default function CreateCampaignModal({
     preview = preview.replace(/{{firstName}}/gi, mockupContact.name.split(' ')[0]);
     preview = preview.replace(/{{pushName}}/gi, mockupContact.pushName);
     preview = preview.replace(/{{phone}}/gi, mockupContact.whatsappId.split('@')[0]);
+    preview = preview.replace(/{{company}}/gi, mockupContact.company);
+    preview = preview.replace(/{{leadScore}}/gi, String(mockupContact.leadScore));
+    preview = preview.replace(/{{stage}}/gi, mockupContact.stageName);
+    preview = preview.replace(/{{buyingIntent}}/gi, mockupContact.buyingIntent);
     setCompiledPreview(preview || 'Your message preview will appear here...');
   }, [messageTemplate]);
 
@@ -132,7 +153,9 @@ export default function CreateCampaignModal({
         maxBatchDelay,
         minBatchSize,
         maxBatchSize,
-        mediaUrl || null
+        mediaUrl || null,
+        targetStageId !== 'all' ? targetStageId : null,
+        minLeadScore > 0 ? Number(minLeadScore) : null
       );
       if (result.success) {
         onSuccess();
@@ -196,37 +219,72 @@ export default function CreateCampaignModal({
               />
             </div>
 
-            {/* Session Selector & Audience Selector */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-600">Sender WhatsApp Session</label>
-                <select
-                  className="w-full bg-white border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  required
-                >
-                  <option value="" disabled>Select session...</option>
-                  {sessions.map(s => (
-                    <option key={s.id} value={s.sessionId}>
-                      {s.sessionId} {s.ready ? '(Ready)' : '(Offline)'}
-                    </option>
-                  ))}
-                </select>
+            {/* Audience Segmentation & Session Grid */}
+            <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Audience Targeting & Session</span>
+                <span className="text-[10px] text-gray-500 font-medium">Smart CRM Filtering</span>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-600">Target Segment Tag</label>
-                <select
-                  className="w-full bg-white border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={targetTagId}
-                  onChange={(e) => setTargetTagId(e.target.value)}
-                >
-                  <option value="all">All Contacts</option>
-                  {tags.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600">Sender Session</label>
+                  <select
+                    className="w-full bg-white border rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={sessionId}
+                    onChange={(e) => setSessionId(e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>Select session...</option>
+                    {sessions.map(s => (
+                      <option key={s.id} value={s.sessionId}>
+                        {s.sessionId} {s.ready ? '(Ready)' : '(Offline)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600">Filter by Tag</label>
+                  <select
+                    className="w-full bg-white border rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={targetTagId}
+                    onChange={(e) => setTargetTagId(e.target.value)}
+                  >
+                    <option value="all">All Tags (No Filter)</option>
+                    {tags.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600">Filter by Deals Stage</label>
+                  <select
+                    className="w-full bg-white border rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={targetStageId}
+                    onChange={(e) => setTargetStageId(e.target.value)}
+                  >
+                    <option value="all">All Stages (No Filter)</option>
+                    {stages.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600">Min AI Lead Score</label>
+                  <select
+                    className="w-full bg-white border rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={minLeadScore}
+                    onChange={(e) => setMinLeadScore(Number(e.target.value))}
+                  >
+                    <option value={0}>Any Score (All Contacts)</option>
+                    <option value={50}>50+ (Warm & Hot Leads)</option>
+                    <option value={75}>75+ (High-Intent Hot Leads)</option>
+                    <option value={90}>90+ (VIP Ready-to-Close)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -237,7 +295,7 @@ export default function CreateCampaignModal({
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
                 placeholder="https://example.com/image-or-video.jpg"
-                className="bg-white"
+                className="bg-white text-xs"
               />
               <span className="text-[10px] text-gray-400 block leading-normal mt-0.5">
                 Provide a direct public link. The Message Template below will be sent as its caption.
@@ -245,18 +303,16 @@ export default function CreateCampaignModal({
             </div>
 
             {/* Message Template Textarea */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold text-gray-600">Message Template</label>
-                <div className="group relative">
-                  <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                  <div className="hidden group-hover:block absolute right-0 top-6 z-10 w-64 bg-gray-950 text-white text-[10px] rounded p-2 shadow-lg space-y-1 leading-normal font-sans">
-                    <p className="font-bold">Supported Variables:</p>
-                    <p><code className="text-blue-400">{"{{name}}"}</code>: Contact Name</p>
-                    <p><code className="text-blue-400">{"{{firstName}}"}</code>: Contact First Name</p>
-                    <p><code className="text-blue-400">{"{{pushName}}"}</code>: WhatsApp Push Name</p>
-                    <p><code className="text-blue-400">{"{{phone}}"}</code>: Recipient Phone Number</p>
-                  </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-gray-400 mr-1">Insert:</span>
+                  <button type="button" onClick={() => handleInsertVariable('firstName')} className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200">{"{{firstName}}"}</button>
+                  <button type="button" onClick={() => handleInsertVariable('phone')} className="text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 px-1.5 py-0.5 rounded">{"{{phone}}"}</button>
+                  <button type="button" onClick={() => handleInsertVariable('company')} className="text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 px-1.5 py-0.5 rounded">{"{{company}}"}</button>
+                  <button type="button" onClick={() => handleInsertVariable('leadScore')} className="text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">{"{{leadScore}}"}</button>
+                  <button type="button" onClick={() => handleInsertVariable('stage')} className="text-[10px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200">{"{{stage}}"}</button>
                 </div>
               </div>
               <textarea

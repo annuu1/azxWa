@@ -84,6 +84,7 @@ export default function PipelineBoard({
   const [approvingProposalId, setApprovingProposalId] = useState<string | null>(null);
   const [runningWorker, setRunningWorker] = useState(false);
   const [pipelineSearch, setPipelineSearch] = useState('');
+  const [filterStagnantOnly, setFilterStagnantOnly] = useState(false);
   const [expandedColumns, setExpandedColumns] = useState<Record<string, boolean>>({});
 
   // Add Deal Modal State
@@ -108,19 +109,32 @@ export default function PipelineBoard({
   const safeLeads = Array.isArray(leads) ? leads : [];
   const safeContacts = Array.isArray(contacts) ? contacts : [];
 
-  // Filter leads by search term
+  // Filter leads by search term and stagnation status
   const filteredLeads = useMemo(() => {
-    if (!pipelineSearch.trim()) return safeLeads;
-    const query = pipelineSearch.toLowerCase();
-    return safeLeads.filter(item => {
-      const c = item.contact || {};
-      return (
-        (c.name || '').toLowerCase().includes(query) ||
-        (c.pushName || '').toLowerCase().includes(query) ||
-        (c.whatsappId || '').toLowerCase().includes(query)
-      );
-    });
-  }, [safeLeads, pipelineSearch]);
+    let result = safeLeads;
+
+    if (pipelineSearch.trim()) {
+      const query = pipelineSearch.toLowerCase();
+      result = result.filter(item => {
+        const c = item.contact || {};
+        return (
+          (c.name || '').toLowerCase().includes(query) ||
+          (c.pushName || '').toLowerCase().includes(query) ||
+          (c.whatsappId || '').toLowerCase().includes(query)
+        );
+      });
+    }
+
+    if (filterStagnantOnly) {
+      const twoDaysAgo = Date.now() - 48 * 60 * 60 * 1000;
+      result = result.filter(item => {
+        const lastUpdated = new Date(item.updatedAt || item.createdAt).getTime();
+        return lastUpdated <= twoDaysAgo;
+      });
+    }
+
+    return result;
+  }, [safeLeads, pipelineSearch, filterStagnantOnly]);
 
   // Group leads by their stageId using useMemo
   const leadsByStage = useMemo(() => {
@@ -465,9 +479,24 @@ export default function PipelineBoard({
             className="pl-8 h-8 text-xs bg-gray-50"
           />
         </div>
-        <div className="text-xs text-gray-500 font-medium">
-          Total Deals: <span className="font-bold text-gray-900">{safeLeads.length}</span>
-          {pipelineSearch && ` (Filtered: ${filteredLeads.length})`}
+        <div className="flex items-center gap-3">
+          <Button
+            variant={filterStagnantOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterStagnantOnly(!filterStagnantOnly)}
+            className={`h-8 text-xs font-medium ${
+              filterStagnantOnly 
+                ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600' 
+                : 'text-amber-800 border-amber-300 hover:bg-amber-50 bg-amber-50/60'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 mr-1" />
+            {filterStagnantOnly ? 'Showing Inactive Deals (>48h)' : 'Filter Inactive (>48h)'}
+          </Button>
+          <div className="text-xs text-gray-500 font-medium">
+            Total Deals: <span className="font-bold text-gray-900">{safeLeads.length}</span>
+            {(pipelineSearch || filterStagnantOnly) && ` (Filtered: ${filteredLeads.length})`}
+          </div>
         </div>
       </div>
 
@@ -522,6 +551,8 @@ export default function PipelineBoard({
                   const score = intel?.leadScore ?? null;
                   const sentiment = intel?.sentiment || 'NEUTRAL';
                   const nextFollowup = intel?.nextFollowupAt ? new Date(intel.nextFollowupAt) : null;
+                  const lastUpdated = new Date(item.updatedAt || item.createdAt).getTime();
+                  const daysInactive = Math.floor((Date.now() - lastUpdated) / (1000 * 60 * 60 * 24));
 
                   return (
                     <Card 
@@ -538,6 +569,16 @@ export default function PipelineBoard({
                             <span className="text-[10px] font-mono text-gray-400 block mt-0.5 truncate">
                               {contact.whatsappId ? contact.whatsappId.replace('@c.us', '') : 'No Number'}
                             </span>
+                            {daysInactive >= 2 && (
+                              <span className={`inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded mt-1 ${
+                                daysInactive >= 7 
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
+                                <Clock className="w-2.5 h-2.5 mr-1 shrink-0" />
+                                {daysInactive >= 7 ? `Stagnant ${daysInactive}d` : `Inactive ${daysInactive}d`}
+                              </span>
+                            )}
                           </div>
                           
                           <div className="flex items-center space-x-1 shrink-0">

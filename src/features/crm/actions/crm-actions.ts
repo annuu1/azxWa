@@ -177,6 +177,7 @@ export async function getPipelineData() {
       stageId: leads.stageId,
       assignedUserId: leads.assignedUserId,
       createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
       contact: {
         id: contacts.id,
         name: contacts.name,

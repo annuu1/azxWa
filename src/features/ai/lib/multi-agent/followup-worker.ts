@@ -106,8 +106,24 @@ export async function processDueFollowups() {
       const activeSession = sessions.find(s => s.status === 'CONNECTED' || s.status === 'READY') || sessions[0];
 
       if (aiMode === 'AUTONOMOUS' && autoEnabled) {
-        // AUTONOMOUS MODE: Auto-execute transmission
-        console.log(`[Follow-Up Worker] Autonomous execution for lead ${item.leadId} (${item.contact.whatsappId})...`);
+        // Atomic claim: set nextFollowupAt = null conditionally to lock this task for this instance
+        const [claimedLead] = await db
+          .update(leadIntelligence)
+          .set({ nextFollowupAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(leadIntelligence.leadId, item.leadId),
+              sql`${leadIntelligence.nextFollowupAt} IS NOT NULL`
+            )
+          )
+          .returning({ leadId: leadIntelligence.leadId });
+
+        if (!claimedLead) {
+          // Another worker instance already claimed this lead's follow-up
+          continue;
+        }
+
+        console.log(`[Follow-Up Worker] Autonomous execution claimed for lead ${item.leadId} (${item.contact.whatsappId})...`);
 
         // Check if message was already sent in last 10 minutes to prevent loops
         const recentActivities = await db
@@ -124,10 +140,6 @@ export async function processDueFollowups() {
 
         if (recentActivities.length > 0) {
           console.log(`[Follow-Up Worker] Skipping lead ${item.leadId}: message sent recently.`);
-          // Clear current due date
-          await db.update(leadIntelligence)
-            .set({ nextFollowupAt: null, updatedAt: new Date() })
-            .where(eq(leadIntelligence.leadId, item.leadId));
           continue;
         }
 

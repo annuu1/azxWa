@@ -1,17 +1,21 @@
 'use server';
 
 import { db } from '@/shared/database';
-import { campaigns, queueJobs, contacts, contactTags, templates } from '@/shared/database/schema';
+import { campaigns, queueJobs, contacts, contactTags, templates, leads, pipelineStages, pipelines, leadIntelligence } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { revalidatePath } from 'next/cache';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, asc } from 'drizzle-orm';
 
 function compileMessage(template: string, contact: any) {
   let message = template;
   message = message.replace(/{{name}}/gi, contact.name || contact.pushName || 'Customer');
   message = message.replace(/{{firstName}}/gi, (contact.name || contact.pushName || 'Customer').split(' ')[0]);
   message = message.replace(/{{pushName}}/gi, contact.pushName || 'Customer');
-  message = message.replace(/{{phone}}/gi, contact.whatsappId.split('@')[0]);
+  message = message.replace(/{{phone}}/gi, (contact.whatsappId || '').split('@')[0]);
+  message = message.replace(/{{company}}/gi, contact.company || 'there');
+  message = message.replace(/{{leadScore}}/gi, String(contact.leadScore ?? ''));
+  message = message.replace(/{{stage}}/gi, contact.stageName || '');
+  message = message.replace(/{{buyingIntent}}/gi, contact.buyingIntent || '');
   return message;
 }
 
@@ -53,6 +57,29 @@ function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+export async function getCampaignAudienceFilters() {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const stages = await db
+      .select({
+        id: pipelineStages.id,
+        name: pipelineStages.name,
+        position: pipelineStages.position,
+      })
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(eq(pipelines.organizationId, orgId))
+      .orderBy(asc(pipelineStages.position));
+
+    return { success: true, stages };
+  } catch (error: any) {
+    return { success: false, error: error.message, stages: [] };
+  }
+}
+
 export async function createCampaign(
   name: string,
   messageTemplate: string,
@@ -65,7 +92,9 @@ export async function createCampaign(
   maxBatchDelay = 120,
   minBatchSize = 35,
   maxBatchSize = 50,
-  mediaUrl: string | null = null
+  mediaUrl: string | null = null,
+  targetStageId: string | null = null,
+  minLeadScore: number | null = null
 ) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -92,26 +121,41 @@ export async function createCampaign(
       mediaUrl: mediaUrl || null,
     }).returning();
 
-    // 2. Fetch target contacts
-    let targetContacts: any[] = [];
-    if (targetTagId) {
-      targetContacts = await db.select({
-        id: contacts.id,
-        name: contacts.name,
-        pushName: contacts.pushName,
-        whatsappId: contacts.whatsappId,
-      })
-      .from(contactTags)
-      .innerJoin(contacts, eq(contactTags.contactId, contacts.id))
-      .where(
-        and(
-          eq(contactTags.tagId, targetTagId),
-          eq(contacts.organizationId, orgId)
-        )
-      );
-    } else {
-      // Send to all contacts in the organization
-      targetContacts = await db.select().from(contacts).where(eq(contacts.organizationId, orgId));
+    // 2. Fetch target contacts with flexible audience filters (tag, stage, score)
+    const rawContacts = await db.select({
+      id: contacts.id,
+      name: contacts.name,
+      pushName: contacts.pushName,
+      whatsappId: contacts.whatsappId,
+      leadId: leads.id,
+      stageId: leads.stageId,
+      stageName: pipelineStages.name,
+      leadScore: leadIntelligence.leadScore,
+      buyingIntent: leadIntelligence.buyingIntent,
+    })
+    .from(contacts)
+    .leftJoin(leads, and(eq(leads.contactId, contacts.id), eq(leads.organizationId, orgId)))
+    .leftJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
+    .leftJoin(leadIntelligence, eq(leads.id, leadIntelligence.leadId))
+    .where(eq(contacts.organizationId, orgId));
+
+    let targetContacts = rawContacts;
+
+    if (targetTagId && targetTagId !== 'all') {
+      const tagMatches = await db
+        .select({ contactId: contactTags.contactId })
+        .from(contactTags)
+        .where(eq(contactTags.tagId, targetTagId));
+      const tagContactIds = new Set(tagMatches.map(t => t.contactId));
+      targetContacts = targetContacts.filter(c => tagContactIds.has(c.id));
+    }
+
+    if (targetStageId && targetStageId !== 'all') {
+      targetContacts = targetContacts.filter(c => c.stageId === targetStageId);
+    }
+
+    if (minLeadScore && minLeadScore > 0) {
+      targetContacts = targetContacts.filter(c => c.leadScore && c.leadScore >= minLeadScore);
     }
 
     if (targetContacts.length === 0) {

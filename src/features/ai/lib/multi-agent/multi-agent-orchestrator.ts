@@ -155,5 +155,15 @@ export async function orchestrateLeadIntelligence(orgId: string, leadId: string)
     });
   }
 
+  // 9. If human escalation was flagged, log prominent escalation activity for team alerts
+  if (arbiterResult.shouldEscalateToHuman) {
+    await db.insert(activities).values({
+      organizationId: orgId,
+      contactId: memoryContext.contactId,
+      type: 'ESCALATE_HUMAN',
+      description: `🚨 [Urgent AI Escalation]: ${arbiterResult.escalationReason || 'Lead requires immediate human intervention.'}`,
+    });
+  }
+
   return arbiterResult;
 }

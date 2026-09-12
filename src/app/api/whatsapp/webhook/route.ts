@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/shared/database';
-import { whatsappSessions, contacts, activities, aiSettings } from '@/shared/database/schema';
-import { eq, and, gte, like, or } from 'drizzle-orm';
+import { whatsappSessions, contacts, activities, aiSettings, leads, pipelines, pipelineStages } from '@/shared/database/schema';
+import { eq, and, gte, like, or, asc } from 'drizzle-orm';
 import { generateAIResponse } from '@/features/ai/lib/ai-service';
+import { queueLeadAnalysis } from '@/features/ai/lib/multi-agent/lead-analysis-queue';
 import { getWhatsAppEngine } from '@/features/whatsapp/lib/engine';
 import { 
   sendMessage as engineSendMessage, 
@@ -162,6 +163,46 @@ export async function POST(req: NextRequest) {
     // 4. Ignore group chats for auto-replies
     if (isGroup) {
       return NextResponse.json({ success: true, message: 'Message ignored (Group chat)' });
+    }
+
+    // 4b. Resolve or auto-create CRM Pipeline Lead for incoming messages & trigger autonomous profiling
+    try {
+      let leadId: string | null = null;
+      const [existingLead] = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.contactId, contact.id), eq(leads.organizationId, orgId)))
+        .limit(1);
+
+      if (existingLead) {
+        leadId = existingLead.id;
+      } else {
+        // Auto-enroll in organization's default sales pipeline stage
+        const [firstStage] = await db
+          .select({ id: pipelineStages.id })
+          .from(pipelineStages)
+          .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+          .where(eq(pipelines.organizationId, orgId))
+          .orderBy(asc(pipelineStages.position))
+          .limit(1);
+
+        if (firstStage) {
+          const [newLead] = await db.insert(leads).values({
+            organizationId: orgId,
+            contactId: contact.id,
+            stageId: firstStage.id,
+            status: 'NEW',
+          }).returning({ id: leads.id });
+          leadId = newLead.id;
+        }
+      }
+
+      // Trigger debounced autonomous multi-agent lead analysis (25-second silence window)
+      if (leadId) {
+        queueLeadAnalysis(orgId, leadId, 25000);
+      }
+    } catch (leadSyncErr: any) {
+      console.warn('[Webhook] Lead sync / profiling queue non-blocking error:', leadSyncErr.message);
     }
 
     // 5. Fetch AI settings to verify if global auto-reply is enabled for organization
