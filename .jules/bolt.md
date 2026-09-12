@@ -1,0 +1,6 @@
+## 2024-09-12 - Prevented Repeated String Allocation in Loops
+**Learning:** In React components managing long lists (like `src/features/crm/components/contacts-list.tsx`), repeated static calculations (like `searchTerm.toLowerCase()`) inside `.filter()` or `.map()` loops cause unnecessary CPU usage and string memory allocations. Combining this with `useMemo` avoids redundant iteration on unrelated re-renders.
+**Action:** When inspecting list filtering or sorting in the future, check if invariant values (like normalized search strings) can be calculated once before the loop rather than repeatedly per item, and ensure the entire operation is appropriately memoized if it involves non-trivial data sizes.
+## 2024-09-12 - Handling Missing Test Scripts in GitHub Actions CI
+**Learning:** If a Node.js project does not have a `test` script defined in its `package.json`, running `npm test` in a GitHub Actions workflow will cause the pipeline to fail with exit code 1.
+**Action:** When setting up or fixing CI pipelines in repositories where test coverage is absent or optional, always use `npm run test --if-present` instead of `npm test` to allow the build to succeed gracefully without triggering a failure.
