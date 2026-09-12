@@ -1,0 +1,3 @@
+## 2024-09-12 - Prevented Repeated String Allocation in Loops
+**Learning:** In React components managing long lists (like `src/features/crm/components/contacts-list.tsx`), repeated static calculations (like `searchTerm.toLowerCase()`) inside `.filter()` or `.map()` loops cause unnecessary CPU usage and string memory allocations. Combining this with `useMemo` avoids redundant iteration on unrelated re-renders.
+**Action:** When inspecting list filtering or sorting in the future, check if invariant values (like normalized search strings) can be calculated once before the loop rather than repeatedly per item, and ensure the entire operation is appropriately memoized if it involves non-trivial data sizes.
