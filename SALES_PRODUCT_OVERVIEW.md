@@ -6,7 +6,7 @@
 
 ## 📌 Executive Summary
 
-**AutoZoneX Connect** is an all-in-one, multi-tenant SaaS and self-hostable platform designed for modern sales, marketing, and customer support teams. Unlike standard WhatsApp bulk senders or basic inbox tools, AutoZoneX Connect combines **native visual CRM pipelines**, **a 5-Agent autonomous AI intelligence workforce**, **multi-session WhatsApp gateways**, and **anti-ban queue engines** into a unified web workspace.
+**AutoZoneX Connect** is an all-in-one, fully managed Enterprise Cloud SaaS platform designed for modern sales, marketing, and customer support teams. Unlike standard WhatsApp bulk senders or basic inbox tools, AutoZoneX Connect combines **native visual CRM pipelines**, **a 5-Agent autonomous AI intelligence workforce**, **multi-session WhatsApp gateways**, and **anti-ban queue engines** into a unified web workspace.
 
 ---
 
@@ -18,7 +18,7 @@
 | **Manual Follow-ups Forgotten**: Leads go cold because sales reps forget to follow up at optimal times. | **Autonomous AI Follow-Up Worker**: AI strategizes the exact timing, drafts contextual copy, and auto-dispatches follow-ups without manual rep intervention. |
 | **Robotic & Impersonal Auto-Replies**: Generic bots reply with template placeholder text. | **RAG-Grounded AI Personas (`Riya`)**: AI introduces itself by name, speaks politely with clean contact greetings (e.g. *“Hi Sumit Sir”*), and references company docs. |
 | **WhatsApp Number Bans**: High-volume broadcasts get accounts flagged and banned. | **Anti-Ban Campaign Engine**: Configurable human-like delays, randomized batch intervals, typing simulation, and warm-up algorithms. |
-| **Expensive SaaS Lock-in**: Competitors charge exorbitant per-conversation or per-user fees. | **Self-Hostable & Privacy-First**: Host on your own Docker servers or private cloud with full SQLite/PostgreSQL database ownership. |
+| **Expensive SaaS Lock-in**: Competitors charge exorbitant per-conversation or per-user fees. | **Predictable Cloud SaaS with Zero Markup**: High-availability managed cloud with strict tenant data isolation and zero per-message penalty fees. |
 
 ---
 
@@ -120,10 +120,10 @@ AutoZoneX Connect does not rely on a single generic chatbot. It deploys a coordi
 
 ---
 
-### 8. 🏢 Multi-Tenancy & Enterprise Self-Hosting
+### 8. 🏢 Multi-Tenancy & Enterprise Cloud Security
 - **Strict Tenant Isolation**: Complete data separation across organizations (Contacts, Sessions, Campaigns, AI Settings).
 - **Role-Based Access Control (RBAC)**: Roles for *Super Admin*, *Org Admin*, and *Sales Agent*.
-- **Docker Ready**: Deploy in minutes using standard `docker compose up` with persistent SQLite / PostgreSQL storage.
+- **Enterprise High Availability**: Fully managed cloud infrastructure with automated database persistence and zero maintenance overhead.
 
 ---
 
@@ -135,7 +135,7 @@ AutoZoneX Connect does not rely on a single generic chatbot. It deploys a coordi
 | **Visual Deals Kanban Pipeline** | ✅ **Included** | ❌ | Partial | ❌ |
 | **BANT Lead Scoring & Profiling** | ✅ **Automated** | ❌ | ❌ | ❌ |
 | **Autonomous Follow-Up Scheduler** | ✅ **Built-in** | ❌ | ❌ | ❌ |
-| **Self-Hostable on Private Infrastructure** | ✅ **Docker / Local** | ❌ (Cloud Only) | ❌ (Cloud Only) | ❌ (Cloud Only) |
+| **Enterprise Cloud Isolation** | ✅ **Strict Tenant DB** | Shared Multi-Tenant | Shared Multi-Tenant | Shared Multi-Tenant |
 | **Custom Knowledge Base (RAG)** | ✅ **Native** | ❌ | Add-on ($$$) | ❌ |
 | **Multi-Session WhatsApp Support** | ✅ **Unlimited** | Limited | Tiered ($$$) | Limited |
 | **Per-Message Platform Markup** | ❌ **Zero Markup** | High Markup | High Markup | High Markup |
@@ -154,7 +154,7 @@ AutoZoneX Connect does not rely on a single generic chatbot. It deploys a coordi
 
 ## 💬 60-Second Elevator Pitch for Sales Reps
 
-> *"AutoZoneX Connect transforms WhatsApp from a chaotic chat app into an autonomous, revenue-generating sales engine. Instead of your reps manually remembering when to message 500 leads, our 5-Agent AI reads your chat histories, scores each lead's buying intent, and automatically drafts or sends polite, personalized follow-ups using your company's knowledge base. You get a full visual deals pipeline, zero message markup fees, and total data privacy on your own server."*
+> *"AutoZoneX Connect transforms WhatsApp from a chaotic chat app into an autonomous, revenue-generating sales engine. Instead of your reps manually remembering when to message 500 leads, our 5-Agent AI reads your chat histories, scores each lead's buying intent, and automatically drafts or sends polite, personalized follow-ups using your company's knowledge base. You get a full visual deals pipeline, zero message markup fees, and bank-grade cloud security on a fully managed SaaS platform."*
 
 ---
 

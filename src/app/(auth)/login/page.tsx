@@ -197,7 +197,7 @@ export default function LoginPage() {
           {/* Privacy & Trust Badge */}
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>100% Self-Hosted &bull; Multi-Tenant Data Isolation</span>
+            <span>Enterprise Cloud &bull; Multi-Tenant Data Isolation</span>
           </div>
 
         </div>

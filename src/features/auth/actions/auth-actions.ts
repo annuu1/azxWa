@@ -31,7 +31,7 @@ export async function login(formData: FormData) {
   const cookieStore = await cookies();
   cookieStore.set('auth_token', token, {
     httpOnly: true,
-    secure: false, // Ensures session cookie persists over HTTP in self-hosted deployments
+    secure: false, // Ensures session cookie persists over HTTP in local/dev environments
     sameSite: 'lax',
     path: '/',     // Crucial: ensures auth_token is sent for all routes (/dashboard/crm, /dashboard/whatsapp, etc.)
     maxAge: 60 * 60 * 24 * 7, // 7 days

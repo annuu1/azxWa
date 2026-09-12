@@ -2,7 +2,7 @@
 
 > **Confidential — For Internal Sales, Solutions Engineering & Customer Success Teams**  
 > **Platform Version:** 1.0 LTS (Multi-Agent System Edition)  
-> **Default Port:** `9091` | **Deployment:** Docker / PM2 Self-Hosted SaaS
+> **Default Port:** `9091` | **Deployment:** Enterprise Managed Cloud SaaS
 
 ---
 
@@ -19,7 +19,7 @@
    - [Module 6: Campaign Broadcasts & Anti-Ban Queue Engine](#module-6-campaign-broadcasts--anti-ban-queue-engine)
    - [Module 7: Visual Workflow Automation](#module-7-visual-workflow-automation)
    - [Module 8: Multi-Tenancy & Enterprise RBAC](#module-8-multi-tenancy--enterprise-rbac)
-   - [Module 9: Self-Hosted Architecture & Data Sovereignty](#module-9-self-hosted-architecture--data-sovereignty)
+   - [Module 9: Enterprise Cloud Architecture & Data Security](#module-9-enterprise-cloud-architecture--data-security)
 4. [Competitive Battlecards vs. Market Alternatives](#4-competitive-battlecards-vs-market-alternatives)
 5. [ROI Justification & Cost Advantage Model](#5-roi-justification--cost-advantage-model)
 6. [Step-by-Step Sales Demo Walkthrough](#6-step-by-step-sales-demo-walkthrough)
@@ -34,11 +34,11 @@
 **AutoZoneX Connect** is an enterprise-grade, multi-tenant WhatsApp CRM, Campaign Automation, and Autonomous Customer Engagement Platform. It bridges the gap between raw messaging gateways and full-scale enterprise CRMs by embedding an **autonomous 4-tier Multi-Agent AI Team** directly into WhatsApp conversations.
 
 ### 30-Second Elevator Pitch
-> *"Most WhatsApp marketing tools are glorified mass-text blasters that risk number bans and require a room full of reps to manually reply. AutoZoneX Connect is a self-hostable WhatsApp CRM with an autonomous multi-agent AI team that profiles incoming leads, crafts contextual consultative replies, schedules smart follow-ups, and moves deals through visual pipelines—running 24/7 on your own infrastructure with zero per-message markups."*
+> *"Most WhatsApp marketing tools are glorified mass-text blasters that risk number bans and require a room full of reps to manually reply. AutoZoneX Connect is an all-in-one WhatsApp CRM with an autonomous multi-agent AI team that profiles incoming leads, crafts contextual consultative replies, schedules smart follow-ups, and moves deals through visual pipelines—running 24/7 on a fully managed, enterprise-grade cloud platform with zero per-message markups."*
 
 ### 4 Core Value Pillars
 1. **Autonomous Revenue Engine:** Not just canned auto-replies, but a collaborative team of specialized AI agents that qualify leads, extract buyer intent, draft consultative messages, and schedule optimal follow-ups.
-2. **100% Data Sovereignty & Privacy:** Self-hosted via Docker or PM2 on client servers. Customer data, chat histories, and contact lists never leave the customer's private perimeter (GDPR & HIPAA compliant friendly).
+2. **Enterprise Cloud Security & Isolation:** Strict multi-tenant logical and data isolation. Customer data, chat histories, and contact lists are encrypted at rest and in transit with bank-grade security.
 3. **Zero Per-Conversation Markup:** Avoid predatory SaaS pricing tiers (e.g., $0.05–$0.12 per conversation on cloud platforms). Run high-volume messaging without unpredictable monthly bills.
 4. **Unified Native CRM:** Complete contact timelines, Kanban pipeline stages, agent assignments, internal notes, and tagging—eliminating the need for separate CRM subscriptions.
 
@@ -64,13 +64,13 @@
   * *Message:* "Cut lead response time from 4 hours to 4 seconds, boosting lead-to-opportunity conversions by up to 45%."
 * **CEO / Founder / Managing Director:**
   * *Focus:* Revenue growth, software cost consolidation, operational scale.
-  * *Message:* "Eliminate 3 disparate tools (CRM + WhatsApp Sender + AI Bot) into one self-hosted platform with zero per-message markup."
+  * *Message:* "Eliminate 3 disparate tools (CRM + WhatsApp Sender + AI Bot) into one enterprise cloud platform with zero per-message markup."
 * **Head of Marketing:**
   * *Focus:* Campaign deliverability, message personalization, audience segmentation, click-through rates.
   * *Message:* "Run personalized broadcast campaigns with intelligent queue pacing that avoids WhatsApp spam filters."
 * **CTO / Head of IT / Compliance Officer:**
-  * *Focus:* Data sovereignty, on-premise hosting, security, API extensibility.
-  * *Message:* "Deploy on your private Linux/Docker infrastructure with SQLite/PostgreSQL compatibility and full role-based access control."
+  * *Focus:* Cloud security, multi-tenant isolation, data privacy, API extensibility.
+  * *Message:* "High-availability enterprise cloud with strict tenant isolation, SQLite/PostgreSQL compatibility, and full role-based access control."
 
 ---
 
@@ -254,11 +254,11 @@ Built from the ground up for multi-branch companies, conglomerates, or agency cl
 
 ---
 
-### Module 9: Self-Hosted Architecture & Data Sovereignty
-* **1-Click Docker Deployment:** Pre-configured `docker compose` configuration with persistent storage volumes.
-* **PM2 Production Management:** Built-in cluster and fork process management (`autozonex-connect` on port `9091`).
-* **Zero Cloud Lock-in:** SQLite local database by default, engineered to be 100% compatible with PostgreSQL migrations.
-* **Dynamic Port & Base URL:** Fully configurable via `PORT` and `APP_URL` environment variables without touching application code.
+### Module 9: Enterprise Cloud Architecture & Data Security
+* **High-Availability Cloud Infrastructure:** Scalable Next.js 15 App Router architecture with high-speed sub-second response times.
+* **Stateless Multi-Tenancy:** Complete logical and data isolation per organization across all tables, chats, and assets.
+* **Bank-Grade Data Security:** Industry-standard encryption at rest and in transit, securing customer communications and credentials.
+* **Database Scalability:** High-performance database architecture fully compatible with PostgreSQL migrations for enterprise scale.
 
 ---
 
@@ -266,8 +266,8 @@ Built from the ground up for multi-branch companies, conglomerates, or agency cl
 
 | Feature / Capability | **AutoZoneX Connect** | **WATI** | **Respond.io** | **Interakt** |
 | :--- | :---: | :---: | :---: | :---: |
-| **Hosting Model** | **Self-Hosted / Private Cloud** | Cloud Only (Multi-tenant) | Cloud Only | Cloud Only |
-| **Data Privacy & Sovereignty** | **100% On-Premise** (Customer owns DB) | Hosted on 3rd party servers | Hosted on 3rd party servers | Hosted on 3rd party servers |
+| **Hosting Model** | **Managed Enterprise Cloud** | Cloud Only (Multi-tenant) | Cloud Only | Cloud Only |
+| **Data Privacy & Isolation** | **Strict Tenant Isolation** | Shared DB pools | Shared DB pools | Shared DB pools |
 | **Per-Message SaaS Markups** | **$0.00 (Zero markup)** | Yes (Charges per conversation) | Yes (Charges per active contact) | Yes (Charges per conversation) |
 | **Autonomous Multi-Agent AI** | **Yes (4 Specialized Agents)** | Basic GPT chatbot only | Rule-based / Basic AI | Basic template bot |
 | **Lead Psychographic Scoring** | **Yes (BANT + Score 0-100)** | No | No | No |
@@ -284,7 +284,7 @@ Built from the ground up for multi-branch companies, conglomerates, or agency cl
 
 | Expense Item | Cloud SaaS (WATI / Respond.io) | **AutoZoneX Connect** |
 | :--- | :--- | :--- |
-| **Monthly Subscription Base** | $250 – $500 / month | Included in self-host license |
+| **Monthly Subscription Base** | $250 – $500 / month | Flat predictable subscription |
 | **Active Contact / Conversation Overages** | $750 – $1,800 / month | **$0.00** |
 | **Add-on Fee for 3 Extra Numbers** | $150 – $300 / month | **$0.00** |
 | **AI Auto-Reply Add-on Pack** | $100 – $250 / month | Bring-your-own LLM key (~$15–$30 on Groq) |
@@ -347,9 +347,9 @@ Use this standard 15-minute demo script during prospect presentations:
 * **Winning Response:**
   > *"ChatGPT alone has no memory of your sales pipeline, doesn't know who is a VIP lead, and frequently hallucinates robotic replies like '[Your Name]'. AutoZoneX Connect uses an orchestrated 4-agent system: Agent 1 scores lead intent, Agent 2 plans timing, Agent 3 writes in your exact brand persona, and Agent 4 acts as a safety supervisor that escalates frustrated customers to humans. It's an entire AI sales department, not a generic chatbot."*
 
-### Objection 3: "Why should we self-host instead of using cloud software like WATI?"
+### Objection 3: "Why should we choose AutoZoneX Connect instead of tools like WATI or Respond.io?"
 * **Winning Response:**
-  > *"Two reasons: Cost and Data Sovereignty. With cloud tools, as your customer database grows, you get penalized with massive monthly contact tiers and conversation fees. With AutoZoneX Connect, you own your server and database. Your customer data, phone numbers, and chat logs never touch third-party cloud aggregators, giving you 100% privacy and zero unexpected bills."*
+  > *"Two reasons: True Multi-Agent Intelligence and Transparent Pricing. Legacy WhatsApp tools are simple bulk message senders that hit you with escalating contact tiers and conversation markups as your list expands. AutoZoneX Connect replaces 3 disparate subscriptions (messaging tool, CRM, bot builder) into one unified enterprise cloud platform with zero per-message markup, native visual pipelines, and an autonomous 4-tier AI team that qualifies leads and books revenue 24/7."*
 
 ### Objection 4: "What if the AI gives the wrong price or makes a promise we can't fulfill?"
 * **Winning Response:**
@@ -363,8 +363,8 @@ Use this standard 15-minute demo script during prospect presentations:
   * *A:* Supports high-speed inference via **Groq** (`openai/gpt-oss-120b`, `llama-3.3-70b`) and multi-model flexibility via **OpenRouter** (`claude-3.5-haiku`, `gpt-4o-mini`).
 * **Q: Can different branches or sub-accounts have separate WhatsApp numbers?**
   * *A:* Yes. Organizations can connect multiple independent numbers, and reps can filter inboxes by session.
-* **Q: Can we run this on our existing server?**
-  * *A:* Yes. Runs on any standard Linux VPS or on-premise server with Docker Compose or Node.js/PM2 (minimum specs: 2 vCPU, 4GB RAM).
+* **Q: Do we need to manage our own servers or databases?**
+  * *A:* No. AutoZoneX Connect is a fully managed enterprise cloud platform. Your organization is provisioned with high-availability infrastructure, automated backups, and zero server maintenance overhead.
 * **Q: Can our existing software connect via webhooks?**
   * *A:* Yes. AutoZoneX Connect features bidirectional webhooks for CRM sync, lead creation, and event streaming.
 * **Q: Does it support multiple languages?**

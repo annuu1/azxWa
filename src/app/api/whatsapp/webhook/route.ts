@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Verify human handoff status (contact-level AI toggle strictly scoped to this organization)
-    const isAiDisabledForContact = !contact.aiEnabled || Number(contact.aiEnabled) === 0 || contact.aiEnabled === false;
+    const isAiDisabledForContact = !contact.aiEnabled || (contact.aiEnabled as unknown) === 0;
 
     // 7. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately
     await db.insert(activities).values({

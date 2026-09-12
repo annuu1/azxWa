@@ -55,8 +55,8 @@ export default function LandingPage() {
       a: "Cloud blasting tools get blocked because they blast thousands of messages simultaneously through unthrottled API threads. AutoZoneX Connect incorporates an intelligent Queue Worker with human-jitter pacing, randomized delay intervals, message template variables ({{firstName}}), and typing indicator simulation. Combined with organic two-way AI replies, WhatsApp algorithms recognize your numbers as reputable, high-trust business lines."
     },
     {
-      q: "Why should we choose self-hosted instead of cloud tools like WATI or Respond.io?",
-      a: "Traditional cloud SaaS providers charge steep per-conversation fees and penalize growing contact lists with escalating monthly tiers. With AutoZoneX Connect, you own 100% of your data on your own Docker or Linux server. Customer phone numbers, confidential negotiations, and chat histories remain strictly within your infrastructure with zero per-message markups."
+      q: "How does AutoZoneX Connect save costs compared to tools like WATI or Respond.io?",
+      a: "Traditional WhatsApp tools charge steep per-conversation markups and penalize growing contact lists with escalating pricing tiers. AutoZoneX Connect is an all-in-one cloud platform that combines an autonomous 4-agent AI team, unlimited contacts, and native CRM pipelines with zero per-message markups, predictable pricing, and enterprise-grade reliability."
     },
     {
       q: "Can human sales agents take over conversations from the AI?",
@@ -150,7 +150,7 @@ export default function LandingPage() {
             <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
             <span>Autonomous 4-Tier Multi-Agent AI System</span>
             <span className="text-slate-600">•</span>
-            <span className="text-slate-300">Self-Hosted Private CRM</span>
+            <span className="text-slate-300">Enterprise Cloud CRM</span>
           </div>
 
           {/* Hero Headline */}
@@ -163,7 +163,7 @@ export default function LandingPage() {
 
           {/* Subtitle */}
           <p className="mt-6 text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed font-normal">
-            Connect unlimited WhatsApp accounts to an autonomous AI sales team that qualifies leads with BANT scoring, crafts consultative responses, schedules smart follow-ups, and moves deals through visual pipelines—running 100% on your own infrastructure.
+            Connect unlimited WhatsApp accounts to an autonomous AI sales team that qualifies leads with BANT scoring, crafts consultative responses, schedules smart follow-ups, and moves deals through visual pipelines—all in one high-performance, fully managed cloud platform.
           </p>
 
           {/* Action CTAs */}
@@ -198,8 +198,8 @@ export default function LandingPage() {
               <div className="text-xs text-slate-400 mt-1 font-medium">Higher Conversion Rate</div>
             </div>
             <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-sm">
-              <div className="text-3xl font-extrabold text-cyan-400">100%</div>
-              <div className="text-xs text-slate-400 mt-1 font-medium">On-Prem Data Privacy</div>
+              <div className="text-3xl font-extrabold text-cyan-400">99.9%</div>
+              <div className="text-xs text-slate-400 mt-1 font-medium">Cloud Uptime & Reliability</div>
             </div>
             <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] backdrop-blur-sm">
               <div className="text-3xl font-extrabold text-white">$0.00</div>
@@ -282,7 +282,7 @@ export default function LandingPage() {
                   <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <Lock className="w-3 h-3 text-emerald-400" />
-                      100% Encrypted • Self-Hosted Server
+                      100% Encrypted • Enterprise Cloud Security
                     </span>
                     <span className="text-emerald-400 font-medium">Grounding: Fleet_Specs_2026.pdf</span>
                   </div>
@@ -555,11 +555,11 @@ export default function LandingPage() {
             {/* Feature 6 */}
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-white/20 transition-all">
               <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center mb-4">
-                <Server className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">100% Self-Hosted Privacy</h3>
+              <h3 className="text-lg font-bold text-white mb-2">Enterprise Cloud Security & Isolation</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Run with Docker Compose or PM2 on your private Linux VPS. All contact lists, customer data, and messages remain completely under your control with zero cloud vendor lock-in.
+                Fully managed high-availability cloud infrastructure with strict multi-tenant isolation, bank-grade encryption at rest and in transit, and zero server maintenance required.
               </p>
             </div>
 
@@ -581,7 +581,7 @@ export default function LandingPage() {
               How We Compare Against Market Leaders
             </h2>
             <p className="mt-4 text-slate-400 text-base sm:text-lg">
-              Compare our self-hosted, multi-agent platform directly with traditional cloud alternatives like WATI, Respond.io, and Interakt.
+              Compare our autonomous multi-agent platform directly with traditional alternatives like WATI, Respond.io, and Interakt.
             </p>
           </div>
 
@@ -600,13 +600,13 @@ export default function LandingPage() {
               <tbody className="divide-y divide-white/[0.06] text-sm">
                 
                 <tr>
-                  <td className="py-4 px-6 font-medium text-slate-200">Deployment & Data Privacy</td>
+                  <td className="py-4 px-6 font-medium text-slate-200">Deployment & Infrastructure</td>
                   <td className="py-4 px-6 font-bold text-emerald-400 bg-emerald-500/5 border-x border-emerald-500/20 flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    100% Self-Hosted / Private Server
+                    Managed Cloud (Zero Maintenance)
                   </td>
-                  <td className="py-4 px-6 text-slate-400">Cloud Only (Shared Servers)</td>
-                  <td className="py-4 px-6 text-slate-400">Cloud Only (Shared Servers)</td>
+                  <td className="py-4 px-6 text-slate-400">Basic Cloud (Single Bot)</td>
+                  <td className="py-4 px-6 text-slate-400">Basic Cloud (Single Bot)</td>
                 </tr>
 
                 <tr>
@@ -793,7 +793,7 @@ export default function LandingPage() {
               Ready to Automate Your WhatsApp Sales?
             </h2>
             <p className="mt-4 text-slate-300 text-base sm:text-lg max-w-2xl mx-auto">
-              Deploy AutoZoneX Connect on your infrastructure today or speak with our sales architects for a tailored implementation demo.
+              Launch AutoZoneX Connect for your business today or speak with our sales architects for a tailored implementation demo.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -817,7 +817,7 @@ export default function LandingPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Self-Hosted Docker</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Fully Managed Cloud</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Multi-Tenant Architecture</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Dedicated Human Support</span>
             </div>
