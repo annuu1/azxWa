@@ -155,9 +155,57 @@ export const aiSettings = sqliteTable('ai_settings', {
   organizationId: text('organization_id').references(() => organizations.id).notNull().unique(),
   enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
   provider: text('provider').default('groq').notNull(), // 'groq' | 'openrouter'
-  model: text('model').default('llama-3.8b-instant').notNull(),
+  model: text('model').default('openai/gpt-oss-120b').notNull(),
   apiKey: text('api_key'),
   systemPrompt: text('system_prompt').default('You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.').notNull(),
+  aiMode: text('ai_mode', { enum: ['AUTONOMOUS', 'APPROVAL_REQUIRED'] }).default('APPROVAL_REQUIRED').notNull(),
+  autoFollowupEnabled: integer('auto_followup_enabled', { mode: 'boolean' }).default(true).notNull(),
+  minConfidence: text('min_confidence').default('0.75').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const leadIntelligence = sqliteTable('lead_intelligence', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  leadId: text('lead_id').references(() => leads.id, { onDelete: 'cascade' }).notNull().unique(),
+  contactId: text('contact_id').references(() => contacts.id).notNull(),
+  summary: text('summary').notNull(),
+  buyerPersona: text('buyer_persona'),
+  buyingIntent: text('buying_intent', { enum: ['HIGH', 'MEDIUM', 'LOW', 'UNQUALIFIED'] }).default('MEDIUM').notNull(),
+  leadScore: integer('lead_score').default(50).notNull(), // 0 to 100
+  sentiment: text('sentiment', { enum: ['POSITIVE', 'NEUTRAL', 'CURIOUS', 'FRUSTRATED', 'COLD'] }).default('NEUTRAL').notNull(),
+  budget: text('budget'),
+  authority: text('authority'),
+  need: text('need'),
+  timeline: text('timeline'),
+  painPoints: text('pain_points'), // JSON string array
+  objections: text('objections'), // JSON string array
+  preferences: text('preferences'),
+  recommendedStageId: text('recommended_stage_id').references(() => pipelineStages.id),
+  nextFollowupAt: integer('next_followup_at', { mode: 'timestamp' }),
+  nextFollowupReason: text('next_followup_reason'),
+  nextSuggestedMessage: text('next_suggested_message'),
+  conversationState: text('conversation_state', { enum: ['NEW', 'QUALIFYING', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST', 'SUPPORT', 'HUMAN_ESCALATED'] }).default('NEW').notNull(),
+  confidence: text('confidence').default('0.85').notNull(),
+  lastAnalyzedAt: integer('last_analyzed_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const aiActionProposals = sqliteTable('ai_action_proposals', {
+  id: text('id').primaryKey().$defaultFn(() => uuidv4()),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  leadId: text('lead_id').references(() => leads.id, { onDelete: 'cascade' }).notNull(),
+  contactId: text('contact_id').references(() => contacts.id).notNull(),
+  actionType: text('action_type', { enum: ['FOLLOWUP_MESSAGE', 'STAGE_TRANSITION', 'TAG_UPDATE', 'LEAD_SCORE_UPDATE', 'ESCALATE_HUMAN'] }).notNull(),
+  status: text('status', { enum: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'EXECUTED', 'AUTO_EXECUTED'] }).default('PENDING_APPROVAL').notNull(),
+  confidence: text('confidence').default('0.85').notNull(),
+  reasoning: text('reasoning').notNull(),
+  proposedPayload: text('proposed_payload').notNull(), // JSON with message, stageId, tags, scheduledAt, etc.
+  executionMode: text('execution_mode', { enum: ['AUTONOMOUS', 'APPROVAL_REQUIRED'] }).default('APPROVAL_REQUIRED').notNull(),
+  approvedById: text('approved_by_id').references(() => users.id),
+  executedAt: integer('executed_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

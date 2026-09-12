@@ -129,6 +129,7 @@ export default function CRMDashboard() {
               stages={pipeline.stages} 
               leads={pipeline.leads} 
               agents={agents}
+              contacts={contacts}
               onSelectContact={setSelectedContactId}
               onUpdate={fetchData}
             />

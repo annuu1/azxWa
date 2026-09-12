@@ -4,7 +4,29 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
-import { X, RefreshCw, Plus, Trash2, Tag, Calendar, User, FileText, CheckCircle2, MessageSquare, ArrowRight } from 'lucide-react';
+import { 
+  X, 
+  RefreshCw, 
+  Plus, 
+  Trash2, 
+  Tag, 
+  Calendar, 
+  User, 
+  FileText, 
+  CheckCircle2, 
+  MessageSquare, 
+  ArrowRight,
+  Sparkles,
+  Flame,
+  Clock,
+  Check,
+  Send,
+  ShieldCheck,
+  AlertCircle,
+  TrendingUp,
+  BrainCircuit,
+  Bot
+} from 'lucide-react';
 import { 
   getContactDetails, 
   addContactNote, 
@@ -14,6 +36,12 @@ import {
   assignLeadAgent,
   updateLeadStage
 } from '../actions/crm-actions';
+import {
+  analyzeLeadWithAi,
+  addHumanNoteAndReanalyze,
+  approveProposalAction,
+  rejectProposalAction
+} from '@/features/ai/actions/multi-agent-actions';
 
 interface ContactDetailsModalProps {
   contactId: string;
@@ -31,7 +59,10 @@ export default function ContactDetailsModal({
   allTags 
 }: ContactDetailsModalProps) {
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'intelligence' | 'notes' | 'tags'>('intelligence');
   const [submittingNote, setSubmittingNote] = useState(false);
+  const [analyzingAi, setAnalyzingAi] = useState(false);
+  const [approvingProposal, setApprovingProposal] = useState(false);
   const [details, setDetails] = useState<any>(null);
   const [noteContent, setNoteContent] = useState('');
   const [newTagName, setNewTagName] = useState('');
@@ -56,13 +87,14 @@ export default function ContactDetailsModal({
     fetchDetails();
   }, [contactId]);
 
-  const handleAddNote = async (e: React.FormEvent) => {
+  const handleAddNoteWithAi = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteContent.trim()) return;
 
     setSubmittingNote(true);
     try {
-      const result = await addContactNote(contactId, noteContent);
+      const leadId = details?.lead?.id;
+      const result = await addHumanNoteAndReanalyze(contactId, leadId, noteContent);
       if (result.success) {
         setNoteContent('');
         await fetchDetails();
@@ -70,6 +102,35 @@ export default function ContactDetailsModal({
       }
     } finally {
       setSubmittingNote(false);
+    }
+  };
+
+  const handleRunAiAnalysis = async () => {
+    const leadId = details?.lead?.id;
+    if (!leadId) return;
+
+    setAnalyzingAi(true);
+    try {
+      const res = await analyzeLeadWithAi(leadId);
+      if (res.success) {
+        await fetchDetails();
+        onUpdate();
+      }
+    } finally {
+      setAnalyzingAi(false);
+    }
+  };
+
+  const handleApproveProposal = async (proposalId: string) => {
+    setApprovingProposal(true);
+    try {
+      const res = await approveProposalAction(proposalId);
+      if (res.success) {
+        await fetchDetails();
+        onUpdate();
+      }
+    } finally {
+      setApprovingProposal(false);
     }
   };
 
@@ -103,9 +164,9 @@ export default function ContactDetailsModal({
 
     setAddingTag(true);
     try {
-      const tagResult = await createOrgTag(newTagName, newTagColor);
-      if (tagResult.success && tagResult.tag) {
-        await addTagToContact(contactId, tagResult.tag.id);
+      const res = await createOrgTag(newTagName, newTagColor);
+      if (res.success && res.tag) {
+        await addTagToContact(contactId, res.tag.id);
         setNewTagName('');
         await fetchDetails();
         onUpdate();
@@ -115,301 +176,404 @@ export default function ContactDetailsModal({
     }
   };
 
-  const handleAssignAgent = async (agentId: string) => {
-    if (!details?.lead) return;
-    try {
-      const targetAgentId = agentId === 'unassigned' ? null : agentId;
-      const result = await assignLeadAgent(details.lead.id, targetAgentId);
-      if (result.success) {
-        await fetchDetails();
-        onUpdate();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleMoveStage = async (stageId: string) => {
-    if (!details?.lead) return;
-    try {
-      const result = await updateLeadStage(details.lead.id, stageId);
-      if (result.success) {
-        await fetchDetails();
-        onUpdate();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'CONVERTED':
-        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'NOTE_ADDED':
-        return <FileText className="w-4 h-4 text-blue-600" />;
-      case 'LEAD_STAGE_CHANGED':
-        return <ArrowRight className="w-4 h-4 text-purple-600" />;
-      case 'LEAD_ASSIGNED':
-        return <User className="w-4 h-4 text-orange-600" />;
-      case 'MESSAGE_RECEIVED':
-      case 'MESSAGE_SENT':
-        return <MessageSquare className="w-4 h-4 text-indigo-600" />;
-      default:
-        return <Calendar className="w-4 h-4 text-gray-600" />;
-    }
-  };
-
-  if (loading) {
+  if (loading && !details) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <Card className="w-full max-w-2xl bg-white p-12 flex flex-col items-center justify-center space-y-4 shadow-2xl">
-          <RefreshCw className="w-10 h-10 animate-spin text-blue-600" />
-          <p className="text-gray-500 font-medium">Loading contact history and notes...</p>
-        </Card>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl p-8 flex flex-col items-center space-y-3">
+          <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+          <p className="text-xs text-gray-500 font-medium">Loading client details & intelligence...</p>
+        </div>
       </div>
     );
   }
 
-  if (!details || !details.contact) return null;
+  const contact = details?.contact;
+  const lead = details?.lead;
+  const intel = details?.intelligence;
+  const proposals = details?.proposals || [];
+  const notesList = details?.notes || [];
+  const activitiesList = details?.activities || [];
+  const appliedTags = details?.tags || [];
 
-  const { contact, lead, notes: contactNotes, activities: contactActivities, tags: appliedTags } = details;
+  // Parse pain points & objections JSON
+  let painPoints: string[] = [];
+  let objections: string[] = [];
+  if (intel) {
+    try { painPoints = typeof intel.painPoints === 'string' ? JSON.parse(intel.painPoints) : []; } catch (e) {}
+    try { objections = typeof intel.objections === 'string' ? JSON.parse(intel.objections) : []; } catch (e) {}
+  }
 
-  // Find tags that are NOT yet applied to this contact
-  const availableTags = allTags.filter(t => !appliedTags.some((at: any) => at.id === t.id));
+  const nextFollowup = intel?.nextFollowupAt ? new Date(intel.nextFollowupAt) : null;
+  const score = intel?.leadScore ?? 50;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden border flex flex-col md:flex-row max-h-[90vh]">
-        {/* Left Side: Summary & Actions Panel */}
-        <div className="w-full md:w-1/3 border-r bg-gray-50/50 p-6 flex flex-col justify-between overflow-y-auto border-b md:border-b-0">
-          <div className="space-y-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{contact.name || contact.pushName || 'WhatsApp Contact'}</h3>
-                <p className="text-xs font-mono text-gray-500 mt-1">{contact.whatsappId}</p>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={onClose}
-                className="h-8 w-8 text-gray-400 hover:text-gray-600 md:hidden"
-              >
-                <X className="w-4 h-4" />
-              </Button>
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-gray-100 flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95">
+        
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base shrink-0">
+              {(contact?.name || contact?.pushName || 'W')[0].toUpperCase()}
             </div>
-
-            {/* Stage & Assignee Selectors for Qualified Leads */}
-            {lead ? (
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Lead Settings</h4>
-                
-                {/* Agent Dropdown */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Assigned Agent</label>
-                  <select
-                    className="w-full bg-white border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={lead.assignedUserId || 'unassigned'}
-                    onChange={(e) => handleAssignAgent(e.target.value)}
-                  >
-                    <option value="unassigned">Unassigned</option>
-                    {agents.map(a => (
-                      <option key={a.id} value={a.id}>{a.email}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Stage dropdown */}
-                {lead.stageId && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-600">Pipeline Stage</label>
-                    <select
-                      className="w-full bg-white border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={lead.stageId}
-                      onChange={(e) => handleMoveStage(e.target.value)}
-                    >
-                      {/* For simplicity we will assume pipelineStages are passed down. 
-                          Wait, we can fetch stages or map them if we have them. 
-                          Let's let the parent pass them or we can load them. 
-                          Wait, let's let the modal load the stages itself, or let the parent pass them.
-                          Since we have `allTags`, let's check if we have stages in `details` - wait, we do not.
-                          Let's add stages to the props, it's cleaner. */}
-                      {appliedTags.map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-center space-y-2">
-                <p className="text-xs text-blue-800">This contact is not currently tracked as a Qualified Lead.</p>
-              </div>
-            )}
-
-            {/* Tags Management */}
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
-                <Tag className="w-3.5 h-3.5 mr-1" /> Contact Tags
-              </h4>
-              
-              {/* Render Current Tags */}
-              <div className="flex flex-wrap gap-1.5">
-                {appliedTags.map((tag: any) => (
-                  <span 
-                    key={tag.id}
-                    style={{ backgroundColor: `${tag.color}15`, color: tag.color, borderColor: `${tag.color}30` }}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
-                  >
-                    {tag.name}
-                    <button 
-                      onClick={() => handleRemoveTag(tag.id)}
-                      className="ml-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-gray-900 text-base truncate">
+                  {contact?.name || contact?.pushName || 'WhatsApp Contact'}
+                </h3>
+                {lead && (
+                  <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Active Lead
                   </span>
-                ))}
-                {appliedTags.length === 0 && (
-                  <span className="text-xs text-gray-400 italic">No tags attached</span>
                 )}
               </div>
+              <p className="text-xs font-mono text-gray-500">{contact?.whatsappId}</p>
+            </div>
+          </div>
 
-              {/* Add Tag Select */}
-              {availableTags.length > 0 && (
-                <div className="space-y-1 pt-2">
-                  <label className="text-[10px] font-semibold text-gray-500">Apply Existing Tag</label>
-                  <select
-                    className="w-full bg-white border rounded-lg p-1.5 text-xs focus:outline-none"
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) handleAddTag(e.target.value);
-                    }}
+          <div className="flex items-center space-x-2">
+            {lead && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRunAiAnalysis}
+                disabled={analyzingAi}
+                className="text-xs h-8 bg-blue-50/50 text-blue-600 border-blue-200 hover:bg-blue-100/60 font-semibold"
+              >
+                {analyzingAi ? <RefreshCw className="animate-spin w-3.5 h-3.5 mr-1" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+                Run AI Analysis
+              </Button>
+            )}
+            <button 
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex border-b border-gray-100 px-5 bg-white text-xs font-semibold">
+          <button
+            onClick={() => setActiveTab('intelligence')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-1.5 transition-colors ${
+              activeTab === 'intelligence'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <BrainCircuit className="w-4 h-4" />
+            <span>AI Lead Intelligence & Strategy</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-1.5 transition-colors ${
+              activeTab === 'notes'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Human Notes & Activity ({notesList.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tags')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-1.5 transition-colors ${
+              activeTab === 'tags'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Tag className="w-4 h-4" />
+            <span>Tags & Labels ({appliedTags.length})</span>
+          </button>
+        </div>
+
+        {/* Tab Contents Area */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          
+          {/* TAB 1: AI LEAD INTELLIGENCE & STRATEGY */}
+          {activeTab === 'intelligence' && (
+            <div className="space-y-4">
+              {intel ? (
+                <>
+                  {/* Lead Score & Intent Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">AI Lead Score</span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className={`text-xl font-black ${
+                          score >= 75 ? 'text-orange-600' : score >= 50 ? 'text-amber-600' : 'text-blue-600'
+                        }`}>
+                          {score}/100
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          score >= 75 ? 'bg-orange-100 text-orange-700' : score >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {score >= 75 ? '🔥 Hot' : score >= 50 ? '🟡 Warm' : '❄️ Cold'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Buying Intent</span>
+                      <div className="mt-1">
+                        <span className="font-bold text-sm text-gray-900">{intel.buyingIntent || 'MEDIUM'} INTENT</span>
+                        <span className="text-[10px] text-gray-500 block capitalize">{intel.sentiment.toLowerCase()} Sentiment</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Buyer Persona</span>
+                      <div className="mt-1">
+                        <span className="font-bold text-xs text-gray-900 leading-tight block truncate">
+                          {intel.buyerPersona || 'Decision Maker'}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">State: {intel.conversationState}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client Summary */}
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-1">
+                    <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
+                      Executive Client Profile
+                    </span>
+                    <p className="text-xs text-gray-800 leading-relaxed font-medium">
+                      {intel.summary}
+                    </p>
+                  </div>
+
+                  {/* BANT Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-gray-400 block uppercase">💰 Budget</span>
+                      <span className="font-semibold text-gray-800 text-xs mt-0.5 block">{intel.budget || 'Not stated'}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-gray-400 block uppercase">👤 Authority</span>
+                      <span className="font-semibold text-gray-800 text-xs mt-0.5 block">{intel.authority || 'Unknown'}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-gray-400 block uppercase">🎯 Primary Need</span>
+                      <span className="font-semibold text-gray-800 text-xs mt-0.5 block truncate">{intel.need || 'Inquiry'}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-gray-400 block uppercase">⏱️ Timeline</span>
+                      <span className="font-semibold text-gray-800 text-xs mt-0.5 block">{intel.timeline || 'Flexible'}</span>
+                    </div>
+                  </div>
+
+                  {/* Pain Points & Objections */}
+                  {(painPoints.length > 0 || objections.length > 0) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {painPoints.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Identified Pain Points</span>
+                          <div className="flex flex-wrap gap-1">
+                            {painPoints.map((p, i) => (
+                              <span key={i} className="bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-md text-[11px]">
+                                • {p}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {objections.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Potential Hesitations / Objections</span>
+                          <div className="flex flex-wrap gap-1">
+                            {objections.map((o, i) => (
+                              <span key={i} className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md text-[11px]">
+                                ⚠️ {o}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Next Strategic Follow-up & Suggested WhatsApp Message */}
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-emerald-900 flex items-center text-xs">
+                        <Clock className="w-3.5 h-3.5 mr-1.5 text-emerald-700" />
+                        Next Recommended Follow-Up: {nextFollowup ? `${nextFollowup.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${nextFollowup.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Within 24 hours'}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-emerald-800 leading-relaxed font-medium">
+                      <strong>Strategy:</strong> {intel.nextFollowupReason}
+                    </p>
+
+                    {intel.nextSuggestedMessage && (
+                      <div className="bg-white border border-emerald-200 rounded-lg p-3 space-y-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Draft WhatsApp Message</span>
+                        <p className="text-xs text-gray-800 italic bg-gray-50/80 p-2.5 rounded border border-gray-100">
+                          "{intel.nextSuggestedMessage}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12 space-y-3 bg-gray-50/60 border border-dashed rounded-xl border-gray-200">
+                  <Bot className="w-10 h-10 text-gray-400 mx-auto" />
+                  <div>
+                    <h4 className="font-bold text-gray-800 text-sm">No AI Intelligence Profile Yet</h4>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
+                      Run the Multi-Agent engine to analyze human notes and conversation history to generate BANT facts, lead score, and follow-up strategy.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleRunAiAnalysis}
+                    disabled={analyzingAi}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
                   >
-                    <option value="" disabled>Select Tag...</option>
-                    {availableTags.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                    {analyzingAi ? <RefreshCw className="animate-spin w-3.5 h-3.5 mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+                    Analyze Lead Now
+                  </Button>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Create Tag Inline Form */}
-              <form onSubmit={handleCreateAndAddTag} className="space-y-2 pt-2 border-t border-dashed">
-                <label className="text-[10px] font-semibold text-gray-500 block">Create new tag</label>
-                <div className="flex space-x-1">
-                  <Input 
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
-                    placeholder="e.g. VIP Client"
-                    className="text-xs h-7 flex-1"
-                    required
-                  />
-                  <input 
-                    type="color"
-                    value={newTagColor}
-                    onChange={(e) => setNewTagColor(e.target.value)}
-                    className="w-7 h-7 border rounded cursor-pointer p-0 shrink-0"
-                  />
-                  <Button type="submit" size="icon" className="h-7 w-7 bg-blue-600 hover:bg-blue-700" disabled={addingTag}>
-                    <Plus className="w-3.5 h-3.5" />
+          {/* TAB 2: HUMAN NOTES & TIMELINE */}
+          {activeTab === 'notes' && (
+            <div className="space-y-4">
+              {/* Add Note Form */}
+              <form onSubmit={handleAddNoteWithAi} className="space-y-2 bg-gray-50/70 border border-gray-200 rounded-xl p-3.5">
+                <label className="text-xs font-bold text-gray-700 block">
+                  Add Human Sales Note (AI will use this to re-strategize):
+                </label>
+                <textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="e.g. Spoke on phone, client interested in annual plan but wants 10% discount approved by Monday..."
+                  className="w-full h-20 p-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                />
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={submittingNote || !noteContent.trim()}
+                    className="text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  >
+                    {submittingNote ? (
+                      <>
+                        <RefreshCw className="animate-spin w-3.5 h-3.5 mr-1.5" />
+                        Saving & Re-analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        Save Note & Ask AI to Re-strategize
+                      </>
+                    )}
                   </Button>
                 </div>
               </form>
-            </div>
-          </div>
 
-          <div className="pt-6 border-t mt-6 hidden md:block">
-            <Button variant="outline" className="w-full" onClick={onClose}>Close Details</Button>
-          </div>
-        </div>
-
-        {/* Right Side: Timeline of Activities & Notes */}
-        <div className="flex-1 flex flex-col min-h-0 bg-white">
-          <div className="p-6 border-b flex justify-between items-center bg-gray-50/10">
-            <div>
-              <h3 className="text-lg font-bold">Activity & History Timeline</h3>
-              <p className="text-xs text-gray-500">Timeline of messages, assignments, and notes</p>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={onClose}
-              className="h-8 w-8 text-gray-400 hover:text-gray-600 hidden md:flex"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Timeline Feed */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="relative border-l border-gray-100 pl-6 space-y-6">
-              {contactActivities.map((act: any) => (
-                <div key={act.id} className="relative">
-                  {/* Timeline bullet */}
-                  <span className="absolute -left-[34px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white border shadow-sm">
-                    {getActivityIcon(act.type)}
-                  </span>
-                  
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-800">
-                      {act.description}
-                      {act.user && (
-                        <span className="text-xs text-gray-400 ml-1">by {act.user.email}</span>
-                      )}
-                    </p>
-                    <time className="text-[10px] text-gray-400">
-                      {new Date(act.createdAt).toLocaleString()}
-                    </time>
-                  </div>
-                </div>
-              ))}
-
-              {/* Display manual memos / notes specifically if any */}
-              {contactNotes.length > 0 && (
-                <div className="pt-4 border-t border-dashed space-y-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Agent Memos & Notes</h4>
-                  <div className="space-y-3">
-                    {contactNotes.map((note: any) => (
-                      <div key={note.id} className="p-3 bg-blue-50/30 rounded-lg border border-blue-50 text-sm space-y-1">
-                        <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                        <div className="flex justify-between items-center text-[10px] text-gray-400">
-                          <span>By {note.user.email}</span>
-                          <span>{new Date(note.createdAt).toLocaleString()}</span>
-                        </div>
+              {/* Notes List */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Previous Notes</h4>
+                {notesList.length > 0 ? (
+                  notesList.map((n: any) => (
+                    <div key={n.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-2xs space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-gray-400 font-medium">
+                        <span>By {n.user?.email ? n.user.email.split('@')[0] : 'Sales Rep'}</span>
+                        <span>{new Date(n.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {contactActivities.length === 0 && (
-                <div className="text-center py-12 text-gray-400 italic text-sm">
-                  No activity history logged yet
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Add Note Footer */}
-          <div className="p-4 border-t bg-gray-50/50">
-            <form onSubmit={handleAddNote} className="space-y-2">
-              <textarea
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                placeholder="Log activity details or add a private agent note..."
-                className="w-full bg-white border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[70px] resize-none"
-                required
-              />
-              <div className="flex justify-end">
-                <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={submittingNote}>
-                  {submittingNote ? <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-2" />}
-                  Add Activity Note
-                </Button>
+                      <p className="text-xs text-gray-800 leading-relaxed">{n.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-400 italic text-center py-4">No notes recorded yet.</p>
+                )}
               </div>
-            </form>
-          </div>
+            </div>
+          )}
+
+          {/* TAB 3: TAGS & LABELS */}
+          {activeTab === 'tags' && (
+            <div className="space-y-4">
+              {/* Applied Tags */}
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-2">Applied Tags</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {appliedTags.map((t: any) => (
+                    <span 
+                      key={t.id} 
+                      style={{ backgroundColor: `${t.color}15`, color: t.color, borderColor: `${t.color}30` }}
+                      className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border"
+                    >
+                      {t.name}
+                      <button 
+                        onClick={() => handleRemoveTag(t.id)} 
+                        className="ml-1.5 hover:opacity-75 focus:outline-none"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {appliedTags.length === 0 && (
+                    <span className="text-xs text-gray-400 italic">No tags assigned.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Available Tags to Add */}
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-2">Add Existing Tag</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTags
+                    .filter((tag: any) => !appliedTags.some((at: any) => at.id === tag.id))
+                    .map((tag: any) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => handleAddTag(tag.id)}
+                        style={{ borderColor: `${tag.color}40`, color: tag.color }}
+                        className="text-xs font-medium border px-2.5 py-1 rounded-full hover:bg-gray-50 flex items-center space-x-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>{tag.name}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Create New Tag */}
+              <form onSubmit={handleCreateAndAddTag} className="pt-3 border-t border-gray-100 flex items-center space-x-2">
+                <Input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="Create new tag name..."
+                  className="h-8 text-xs flex-1"
+                />
+                <input
+                  type="color"
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                  className="w-8 h-8 rounded border border-gray-200 cursor-pointer p-0.5"
+                />
+                <Button type="submit" disabled={addingTag || !newTagName.trim()} size="sm" className="h-8 text-xs">
+                  Create
+                </Button>
+              </form>
+            </div>
+          )}
+
         </div>
+
       </div>
     </div>
   );

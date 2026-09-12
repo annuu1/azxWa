@@ -10,16 +10,36 @@ import {
   tags, 
   contactTags, 
   notes, 
-  activities 
+  activities,
+  leadIntelligence,
+  aiActionProposals
 } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { revalidatePath } from 'next/cache';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, desc } from 'drizzle-orm';
 
 // Lazy seed default pipeline and stages for an organization
 async function ensureDefaultPipeline(orgId: string) {
   const [existingPipeline] = await db.select().from(pipelines).where(eq(pipelines.organizationId, orgId)).limit(1);
   if (existingPipeline) {
+    const existingStages = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, existingPipeline.id));
+    if (existingStages.length === 0) {
+      const defaultStages = [
+        { name: 'New', position: 1 },
+        { name: 'Contacted', position: 2 },
+        { name: 'Qualified', position: 3 },
+        { name: 'Proposal', position: 4 },
+        { name: 'Won', position: 5 },
+        { name: 'Lost', position: 6 },
+      ];
+      for (const stage of defaultStages) {
+        await db.insert(pipelineStages).values({
+          pipelineId: existingPipeline.id,
+          name: stage.name,
+          position: stage.position,
+        });
+      }
+    }
     return existingPipeline.id;
   }
 
@@ -58,27 +78,36 @@ export async function getOrgContacts() {
   try {
     const allContacts = await db.select().from(contacts).where(eq(contacts.organizationId, orgId));
     
-    // For each contact, fetch their tag associations
-    const contactsWithTags = await Promise.all(
-      allContacts.map(async (c) => {
-        const contactLead = await db.select().from(leads).where(eq(leads.contactId, c.id)).limit(1);
-        const contactAppliedTags = await db.select({
-          id: tags.id,
-          name: tags.name,
-          color: tags.color,
-        })
-        .from(contactTags)
-        .innerJoin(tags, eq(contactTags.tagId, tags.id))
-        .where(eq(contactTags.contactId, c.id));
+    // Batch fetch all leads for this org in one query
+    const allLeads = await db.select({ contactId: leads.contactId, status: leads.status }).from(leads).where(eq(leads.organizationId, orgId));
+    const leadMap = new Map<string, string>();
+    for (const l of allLeads) {
+      leadMap.set(l.contactId, l.status || 'NEW');
+    }
 
-        return {
-          ...c,
-          isLead: contactLead.length > 0,
-          leadStatus: contactLead[0]?.status || 'NONE',
-          tags: contactAppliedTags,
-        };
-      })
-    );
+    // Batch fetch all contact tags for this org in one query
+    const allContactTags = await db.select({
+      contactId: contactTags.contactId,
+      id: tags.id,
+      name: tags.name,
+      color: tags.color,
+    })
+    .from(contactTags)
+    .innerJoin(tags, eq(contactTags.tagId, tags.id))
+    .where(eq(tags.organizationId, orgId));
+
+    const tagsMap = new Map<string, Array<{ id: string; name: string; color: string }>>();
+    for (const row of allContactTags) {
+      if (!tagsMap.has(row.contactId)) tagsMap.set(row.contactId, []);
+      tagsMap.get(row.contactId)!.push({ id: row.id, name: row.name, color: row.color });
+    }
+
+    const contactsWithTags = allContacts.map(c => ({
+      ...c,
+      isLead: leadMap.has(c.id),
+      leadStatus: leadMap.get(c.id) || 'NONE',
+      tags: tagsMap.get(c.id) || [],
+    }));
 
     return { success: true, contacts: contactsWithTags };
   } catch (error: any) {
@@ -162,26 +191,53 @@ export async function getPipelineData() {
     .from(leads)
     .innerJoin(contacts, eq(leads.contactId, contacts.id))
     .leftJoin(users, eq(leads.assignedUserId, users.id))
-    .where(eq(leads.organizationId, orgId));
+    .where(eq(leads.organizationId, orgId))
+    .orderBy(desc(leads.createdAt));
 
-    // For each lead, fetch tags
-    const leadsWithTags = await Promise.all(
-      allLeads.map(async (l) => {
-        const leadTags = await db.select({
-          id: tags.id,
-          name: tags.name,
-          color: tags.color,
-        })
-        .from(contactTags)
-        .innerJoin(tags, eq(contactTags.tagId, tags.id))
-        .where(eq(contactTags.contactId, l.contact.id));
+    // Batch fetch lead intelligence in one query
+    const allIntel = await db.select().from(leadIntelligence).where(eq(leadIntelligence.organizationId, orgId));
+    const intelMap = new Map();
+    for (const intel of allIntel) {
+      intelMap.set(intel.leadId, intel);
+    }
 
-        return {
-          ...l,
-          tags: leadTags,
-        };
-      })
+    // Batch fetch pending action proposals in one query
+    const allProposals = await db.select().from(aiActionProposals).where(
+      and(
+        eq(aiActionProposals.organizationId, orgId),
+        eq(aiActionProposals.status, 'PENDING_APPROVAL')
+      )
     );
+    const proposalMap = new Map();
+    for (const prop of allProposals) {
+      if (!proposalMap.has(prop.leadId)) {
+        proposalMap.set(prop.leadId, prop);
+      }
+    }
+
+    // Batch fetch all contact tags in one query
+    const allContactTags = await db.select({
+      contactId: contactTags.contactId,
+      id: tags.id,
+      name: tags.name,
+      color: tags.color,
+    })
+    .from(contactTags)
+    .innerJoin(tags, eq(contactTags.tagId, tags.id))
+    .where(eq(tags.organizationId, orgId));
+
+    const tagsMap = new Map<string, Array<{ id: string; name: string; color: string }>>();
+    for (const row of allContactTags) {
+      if (!tagsMap.has(row.contactId)) tagsMap.set(row.contactId, []);
+      tagsMap.get(row.contactId)!.push({ id: row.id, name: row.name, color: row.color });
+    }
+
+    const leadsWithTags = allLeads.map(l => ({
+      ...l,
+      tags: tagsMap.get(l.contact.id) || [],
+      intelligence: intelMap.get(l.id) || null,
+      pendingProposal: proposalMap.get(l.id) || null,
+    }));
 
     return { success: true, stages, leads: leadsWithTags };
   } catch (error: any) {
@@ -340,7 +396,24 @@ export async function getContactDetails(contactId: string) {
     .innerJoin(tags, eq(contactTags.tagId, tags.id))
     .where(eq(contactTags.contactId, contactId));
 
-    return { success: true, contact, lead, notes: contactNotes, activities: contactActivities, tags: appliedTags };
+    let intelligence = null;
+    let proposals: any[] = [];
+    if (lead) {
+      const [intel] = await db.select().from(leadIntelligence).where(eq(leadIntelligence.leadId, lead.id)).limit(1);
+      intelligence = intel || null;
+      proposals = await db.select().from(aiActionProposals).where(eq(aiActionProposals.leadId, lead.id)).orderBy(desc(aiActionProposals.createdAt)).limit(5);
+    }
+
+    return { 
+      success: true, 
+      contact, 
+      lead, 
+      notes: contactNotes, 
+      activities: contactActivities, 
+      tags: appliedTags,
+      intelligence,
+      proposals 
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -433,6 +506,209 @@ export async function addTagToContact(contactId: string, tagId: string) {
       tagId,
     });
 
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function createLeadForContact(contactId: string, stageId?: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const pipelineId = await ensureDefaultPipeline(orgId);
+    const stagesList = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, pipelineId)).orderBy(asc(pipelineStages.position));
+
+    if (stagesList.length === 0) {
+      throw new Error('Default pipeline stages not configured');
+    }
+
+    const matchedStage = stagesList.find(s => s.id === stageId);
+    const targetStageId = matchedStage ? matchedStage.id : stagesList[0].id;
+
+    const [existingLead] = await db.select().from(leads).where(
+      and(
+        eq(leads.contactId, contactId),
+        eq(leads.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (existingLead) {
+      await db.update(leads).set({ stageId: targetStageId, updatedAt: new Date() }).where(eq(leads.id, existingLead.id));
+      revalidatePath('/dashboard/crm');
+      return { success: true, lead: existingLead };
+    }
+
+    const [newLead] = await db.insert(leads).values({
+      organizationId: orgId,
+      contactId,
+      stageId: targetStageId,
+      status: 'NEW',
+    }).returning();
+
+    await db.insert(activities).values({
+      organizationId: orgId,
+      contactId,
+      type: 'CONVERTED',
+      description: 'Contact added to deal pipeline.',
+      userId: userSession.userId as string,
+    });
+
+    revalidatePath('/dashboard/crm');
+    return { success: true, lead: newLead };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function createManualContactAndLead(data: { name: string; phone: string; stageId?: string; assignedUserId?: string }) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const cleanPhone = data.phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone) throw new Error('Valid phone number is required');
+    const whatsappId = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@c.us`;
+
+    // Find or create contact
+    let [contact] = await db.select().from(contacts).where(
+      and(
+        eq(contacts.whatsappId, whatsappId),
+        eq(contacts.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (!contact) {
+      const [newContact] = await db.insert(contacts).values({
+        organizationId: orgId,
+        whatsappId,
+        name: data.name || cleanPhone,
+        pushName: data.name || cleanPhone,
+        aiEnabled: true,
+      }).returning();
+      contact = newContact;
+    } else if (data.name && contact.name !== data.name) {
+      await db.update(contacts).set({ name: data.name, updatedAt: new Date() }).where(eq(contacts.id, contact.id));
+    }
+
+    // Now create or update lead
+    const result = await createLeadForContact(contact.id, data.stageId);
+    if (!result.success) throw new Error(result.error);
+
+    if (data.assignedUserId && data.assignedUserId !== 'unassigned' && result.lead) {
+      await db.update(leads).set({ assignedUserId: data.assignedUserId }).where(eq(leads.id, result.lead.id));
+    }
+
+    revalidatePath('/dashboard/crm');
+    return { success: true, contact, lead: result.lead };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function convertAllContactsToLeads() {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const pipelineId = await ensureDefaultPipeline(orgId);
+    const stagesList = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, pipelineId)).orderBy(asc(pipelineStages.position));
+    const firstStageId = stagesList[0]?.id;
+
+    if (!firstStageId) {
+      throw new Error('Default pipeline stages not configured');
+    }
+
+    const allContacts = await db.select().from(contacts).where(eq(contacts.organizationId, orgId));
+    const existingLeads = await db.select().from(leads).where(eq(leads.organizationId, orgId));
+    const existingContactIds = new Set(existingLeads.map(l => l.contactId));
+
+    let createdCount = 0;
+    for (const c of allContacts) {
+      if (!existingContactIds.has(c.id)) {
+        await db.insert(leads).values({
+          organizationId: orgId,
+          contactId: c.id,
+          stageId: firstStageId,
+          status: 'NEW',
+        });
+        createdCount++;
+      }
+    }
+
+    revalidatePath('/dashboard/crm');
+    return { success: true, count: createdCount };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function moveLeadStageStep(leadId: string, direction: 'prev' | 'next') {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const pipelineId = await ensureDefaultPipeline(orgId);
+    const stagesList = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, pipelineId)).orderBy(asc(pipelineStages.position));
+
+    const [lead] = await db.select().from(leads).where(
+      and(
+        eq(leads.id, leadId),
+        eq(leads.organizationId, orgId)
+      )
+    ).limit(1);
+
+    if (!lead) throw new Error('Lead not found');
+
+    const currentIndex = stagesList.findIndex(s => s.id === lead.stageId);
+    let targetIndex = currentIndex;
+
+    if (currentIndex === -1) {
+      targetIndex = 0;
+    } else if (direction === 'next' && currentIndex < stagesList.length - 1) {
+      targetIndex = currentIndex + 1;
+    } else if (direction === 'prev' && currentIndex > 0) {
+      targetIndex = currentIndex - 1;
+    }
+
+    const targetStage = stagesList[targetIndex];
+    if (targetStage && targetStage.id !== lead.stageId) {
+      await db.update(leads).set({ stageId: targetStage.id, updatedAt: new Date() }).where(eq(leads.id, leadId));
+      await db.insert(activities).values({
+        organizationId: orgId,
+        contactId: lead.contactId,
+        type: 'LEAD_STAGE_CHANGED',
+        description: `Lead moved ${direction === 'next' ? 'forward' : 'backward'} to stage: ${targetStage.name}`,
+        userId: userSession.userId as string,
+      });
+    }
+
+    revalidatePath('/dashboard/crm');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteLead(leadId: string) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    await db.delete(leads).where(
+      and(
+        eq(leads.id, leadId),
+        eq(leads.organizationId, orgId)
+      )
+    );
+
+    revalidatePath('/dashboard/crm');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
