@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw, Edit3, User, Building2 } from 'lucide-react';
+import { Bot, Sparkles, Save, AlertCircle, Eye, EyeOff, Cpu, CheckCircle, RefreshCw, Edit3, User, Building2, Clock } from 'lucide-react';
 import { getAISettingsData, saveAISettings } from '../actions/ai-actions';
 
 export default function AISettingsPanel() {
@@ -23,6 +23,8 @@ export default function AISettingsPanel() {
   const [agentName, setAgentName] = useState('Riya');
   const [companyName, setCompanyName] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [stagnantReactivationEnabled, setStagnantReactivationEnabled] = useState(true);
+  const [stagnantHoursThreshold, setStagnantHoursThreshold] = useState(48);
   
   // UI States
   const [showKey, setShowKey] = useState(false);
@@ -55,6 +57,12 @@ export default function AISettingsPanel() {
         setAgentName(data.settings.agentName || 'Riya');
         setCompanyName(data.settings.companyName || '');
         setSystemPrompt(data.settings.systemPrompt);
+        if (data.settings.stagnantReactivationEnabled !== undefined) {
+          setStagnantReactivationEnabled(Boolean(data.settings.stagnantReactivationEnabled));
+        }
+        if (data.settings.stagnantHoursThreshold) {
+          setStagnantHoursThreshold(Number(data.settings.stagnantHoursThreshold));
+        }
 
         const currentModel = data.settings.model || 'openai/gpt-oss-120b';
         const activePresets = data.settings.provider === 'groq' ? groqModels : openrouterModels;
@@ -126,7 +134,9 @@ export default function AISettingsPanel() {
         apiKey || null,
         systemPrompt,
         agentName.trim() || 'Riya',
-        companyName.trim() || undefined
+        companyName.trim() || undefined,
+        stagnantReactivationEnabled,
+        stagnantHoursThreshold
       );
 
       if (res.success) {
@@ -200,6 +210,45 @@ export default function AISettingsPanel() {
                 className="w-11 h-6 bg-gray-200 rounded-full appearance-none cursor-pointer checked:bg-blue-600 relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all checked:after:translate-x-full"
               />
             </div>
+          </div>
+
+          {/* Autonomous Stagnant Deal Re-Activator Section */}
+          <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <label className="font-bold text-gray-900 text-sm">Autonomous Stagnant Deal Re-Activator</label>
+                </div>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  Automatically scans, analyzes, and re-engages idle deals that have been inactive in a pipeline stage without manual sales rep intervention.
+                </p>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={stagnantReactivationEnabled}
+                  onChange={(e) => setStagnantReactivationEnabled(e.target.checked)}
+                  className="w-11 h-6 bg-gray-200 rounded-full appearance-none cursor-pointer checked:bg-amber-600 relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all checked:after:translate-x-full"
+                />
+              </div>
+            </div>
+
+            {stagnantReactivationEnabled && (
+              <div className="pt-2 border-t border-amber-200/70 flex items-center justify-between text-xs">
+                <span className="text-gray-700 font-medium">Inactivity Threshold Before Auto-Reengagement:</span>
+                <select
+                  value={stagnantHoursThreshold}
+                  onChange={(e) => setStagnantHoursThreshold(Number(e.target.value))}
+                  className="bg-white border border-amber-300 rounded px-2.5 py-1 text-xs font-semibold text-gray-800"
+                >
+                  <option value={24}>24 Hours (1 Day)</option>
+                  <option value={48}>48 Hours (2 Days - Default)</option>
+                  <option value={72}>72 Hours (3 Days)</option>
+                  <option value={168}>7 Days (1 Week)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Agent Persona & Company Identity Section */}

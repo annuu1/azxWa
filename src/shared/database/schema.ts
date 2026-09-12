@@ -162,6 +162,8 @@ export const aiSettings = sqliteTable('ai_settings', {
   systemPrompt: text('system_prompt').default('You are a helpful customer engagement and sales assistant. Act like a real human chatting on WhatsApp. Keep your responses concise, helpful, and natural. Never use markdown tables; use clean bullet points instead.').notNull(),
   aiMode: text('ai_mode', { enum: ['AUTONOMOUS', 'APPROVAL_REQUIRED'] }).default('APPROVAL_REQUIRED').notNull(),
   autoFollowupEnabled: integer('auto_followup_enabled', { mode: 'boolean' }).default(true).notNull(),
+  stagnantReactivationEnabled: integer('stagnant_reactivation_enabled', { mode: 'boolean' }).default(true).notNull(),
+  stagnantHoursThreshold: integer('stagnant_hours_threshold').default(48).notNull(),
   minConfidence: text('min_confidence').default('0.75').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),

@@ -26,6 +26,7 @@ Return ONLY a valid JSON object.`;
 - Sentiment: ${profile.sentiment}
 - Conversation State: ${profile.conversationState}
 - Client Summary: ${profile.summary}
+- Inactivity Status: ${context.isStagnant ? `🚨 STAGNANT: Inactive for ${context.daysInactive} days in stage "${context.currentStageName}". Needs friendly, low-pressure re-engagement.` : 'Active discussion'}
 
 Recent Human Notes:
 ${notesText}

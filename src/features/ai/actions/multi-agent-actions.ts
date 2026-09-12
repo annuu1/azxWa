@@ -702,3 +702,22 @@ export async function deleteLeadIntelligenceAction(leadId: string) {
     return { success: false, error: error.message };
   }
 }
+
+// 18. Manually trigger an on-demand scan of stagnant deals for the current organization
+export async function triggerStagnantScanAction() {
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
+  const orgId = session.organizationId as string;
+
+  try {
+    const { processStagnantDeals } = await import('../lib/multi-agent/stagnant-deal-worker');
+    await processStagnantDeals();
+
+    revalidatePath('/dashboard/crm');
+    revalidatePath('/dashboard/ai');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

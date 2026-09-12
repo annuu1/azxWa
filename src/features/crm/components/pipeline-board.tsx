@@ -47,7 +47,8 @@ import {
   rejectProposalAction,
   toggleAiExecutionModeAction,
   getAiModeSettingAction,
-  triggerFollowupWorkerAction
+  triggerFollowupWorkerAction,
+  triggerStagnantScanAction
 } from '@/features/ai/actions/multi-agent-actions';
 
 interface PipelineBoardProps {
@@ -85,6 +86,7 @@ export default function PipelineBoard({
   const [runningWorker, setRunningWorker] = useState(false);
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [filterStagnantOnly, setFilterStagnantOnly] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
   const [expandedColumns, setExpandedColumns] = useState<Record<string, boolean>>({});
 
   // Add Deal Modal State
@@ -201,6 +203,20 @@ export default function PipelineBoard({
       }
     } finally {
       setLoadingLeadId(null);
+    }
+  };
+
+  const handleRunReactivation = async () => {
+    setIsReactivating(true);
+    try {
+      const res = await triggerStagnantScanAction();
+      if (res.success) {
+        onUpdate();
+      }
+    } catch (e) {
+      console.error('Error running stagnant deal re-activator:', e);
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -492,6 +508,17 @@ export default function PipelineBoard({
           >
             <Clock className="w-3.5 h-3.5 mr-1" />
             {filterStagnantOnly ? 'Showing Inactive Deals (>48h)' : 'Filter Inactive (>48h)'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isReactivating}
+            onClick={handleRunReactivation}
+            className="h-8 text-xs font-semibold text-emerald-800 border-emerald-300 hover:bg-emerald-50 bg-emerald-50/60"
+            title="Scan and re-engage stagnant deals (>48h inactive)"
+          >
+            <Zap className={`w-3.5 h-3.5 mr-1 ${isReactivating ? 'animate-spin' : 'text-emerald-600'}`} />
+            {isReactivating ? 'Re-activating Deals...' : 'Auto-Reactivate Stagnant'}
           </Button>
           <div className="text-xs text-gray-500 font-medium">
             Total Deals: <span className="font-bold text-gray-900">{safeLeads.length}</span>

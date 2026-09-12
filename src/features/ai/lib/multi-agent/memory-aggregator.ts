@@ -142,6 +142,10 @@ export async function aggregateLeadMemory(orgId: string, leadId: string): Promis
     console.warn("[MemoryAggregator] RAG knowledge retrieval skipped/failed:", e);
   }
 
+  const lastActiveTimestamp = new Date(leadRecord.updatedAt || leadRecord.createdAt || Date.now()).getTime();
+  const daysInactive = Math.max(0, Math.floor((Date.now() - lastActiveTimestamp) / (1000 * 60 * 60 * 24)));
+  const isStagnant = daysInactive >= 2;
+
   return {
     leadId: leadRecord.id,
     contactId: contactRecord.id,
@@ -160,5 +164,7 @@ export async function aggregateLeadMemory(orgId: string, leadId: string): Promis
     existingSummary: existingIntel ? existingIntel.summary : undefined,
     existingState: (existingIntel && existingIntel.conversationState as any) || "NEW",
     relevantKnowledgeContext,
+    daysInactive,
+    isStagnant,
   };
 }

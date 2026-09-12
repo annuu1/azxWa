@@ -32,11 +32,13 @@
   - `{{firstName}}`, `{{phone}}`, `{{company}}`, `{{leadScore}}`, `{{stage}}`, `{{buyingIntent}}`.
 - **Interactive Builder**: 1-click variable pill insertion and real-time live message preview.
 
-#### 6. Pipeline Deals Inactivity & Stagnation Detection
-- **Deal Aging Indicators**:
-  - ⚠️ **Inactive (>48h)**: Amber indicator badge for deals untouched for over 48 hours.
-  - 🚨 **Stagnant (>7d)**: Rose indicator badge for deals stagnant for over a week.
-- **Kanban Quick Filter**: Added 1-click toolbar toggle to instantly filter and isolate stagnant deals needing re-engagement.
+#### 6. Autonomous Stagnant Deal Re-Activator & Aging Indicators
+- **Autonomous Stagnant Deal Worker (`stagnant-deal-worker.ts`)**: Background cron worker scanning every 60 seconds for deals inactive for >48 hours in active pipeline stages.
+- **Cluster-Safe Atomic Locking**: Employs conditional atomic update claiming to prevent multiple cluster instances from duplicate re-engagement.
+- **Context-Aware Multi-Agent Re-Activation**: Invokes the Follow-up Strategist & Copywriter Agent to synthesize warm, non-pushy, human-like check-in messages formatted for WhatsApp without markdown tables.
+- **Anti-Spam & Anti-Fatigue Guardrails**: Automatically suppresses contacts messaged within the last 48 hours or contacts who have received 3 consecutive re-activations without replying.
+- **Autonomous vs. Approval Execution**: Auto-sends via active WhatsApp session in Autonomous mode; stages 1-click review proposals in Co-Pilot mode.
+- **Kanban Toolbar 1-Click Action & Filter**: Visual badges, "Filter Inactive (>48h)" toggle, and an instant "Auto-Reactivate Stagnant" button directly in the pipeline board.
 
 #### 7. Modern UI/UX & Enterprise Cloud Positioning
 - **Modern Landing Page**: Enterprise-focused positioning highlighting native WhatsApp CRM, AI Multi-Agent automation, and unified team inbox.

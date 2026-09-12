@@ -45,6 +45,8 @@ export interface LeadMemoryContext {
   existingSummary?: string | null;
   existingState?: ConversationState | null;
   relevantKnowledgeContext?: string;
+  daysInactive?: number;
+  isStagnant?: boolean;
 }
 
 export interface LeadProfileAnalysis {

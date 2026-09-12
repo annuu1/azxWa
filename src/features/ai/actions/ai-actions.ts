@@ -72,7 +72,9 @@ export async function saveAISettings(
   apiKey: string | null,
   systemPrompt: string,
   agentName?: string,
-  companyName?: string
+  companyName?: string,
+  stagnantReactivationEnabled?: boolean,
+  stagnantHoursThreshold?: number
 ) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -92,6 +94,8 @@ export async function saveAISettings(
 
     const finalAgentName = (agentName && agentName.trim()) || 'Riya';
     const finalCompanyName = companyName?.trim() || null;
+    const finalStagnantEnabled = stagnantReactivationEnabled !== undefined ? Boolean(stagnantReactivationEnabled) : true;
+    const finalStagnantHours = typeof stagnantHoursThreshold === 'number' && stagnantHoursThreshold > 0 ? stagnantHoursThreshold : 48;
 
     await db
       .insert(aiSettings)
@@ -104,6 +108,8 @@ export async function saveAISettings(
         agentName: finalAgentName,
         companyName: finalCompanyName,
         systemPrompt,
+        stagnantReactivationEnabled: finalStagnantEnabled,
+        stagnantHoursThreshold: finalStagnantHours,
       })
       .onConflictDoUpdate({
         target: aiSettings.organizationId,
@@ -115,6 +121,8 @@ export async function saveAISettings(
           agentName: finalAgentName,
           companyName: finalCompanyName,
           systemPrompt,
+          stagnantReactivationEnabled: finalStagnantEnabled,
+          stagnantHoursThreshold: finalStagnantHours,
           updatedAt: new Date(),
         },
       });

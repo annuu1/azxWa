@@ -50,6 +50,7 @@ Recipient Context:
 - Pain Points: ${profile.painPoints.join(', ') || 'N/A'}
 - Objections to address gently: ${profile.objections.join(', ') || 'N/A'}
 - Relevant Human Sales Notes: ${notesText}
+- Deal Inactivity Status: ${context.isStagnant ? `Deal has been inactive for ${context.daysInactive} days. Write a natural, friendly, zero-pressure re-engagement hook or helpful update.` : 'Active conversation'}
 ${knowledgeSection}
 Follow-up Objective:
 ${strategy.communicationGoal}
