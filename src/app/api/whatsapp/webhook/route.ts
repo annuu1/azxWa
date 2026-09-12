@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
       );
 
     const isAiDisabledForContact = matchingContacts.some(
-      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0 || c.aiEnabled === false
+      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0
     );
 
     // 7. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately

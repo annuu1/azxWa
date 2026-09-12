@@ -1,11 +1,11 @@
 import { IWhatsAppEngineAdapter, NormalizedWebhookEvent, WhatsAppSession, SessionConfig } from './types';
+import { getAppUrl, getWhatsAppEngineUrl } from '@/shared/config/platform';
 
 export class OpenWAAdapter implements IWhatsAppEngineAdapter {
   name = 'openwa';
 
   private get baseUrl(): string {
-    const url = process.env.WHATSAPP_ENGINE_URL || 'http://localhost:2785';
-    return url.replace(/\/+$/, '');
+    return getWhatsAppEngineUrl('2785');
   }
 
   private get apiKey(): string {
@@ -86,7 +86,7 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
    */
   private async ensureWebhookRegistered(targetId: string): Promise<void> {
     try {
-      const appUrl = (process.env.APP_URL || 'http://localhost:9091').replace(/\/+$/, '');
+      const appUrl = getAppUrl();
       const targetWebhookUrl = `${appUrl}/api/whatsapp/webhook?sessionId=${encodeURIComponent(targetId)}`;
       
       const webhooks = await this.fetchApi(`/api/sessions/${targetId}/webhooks`).catch(() => []);

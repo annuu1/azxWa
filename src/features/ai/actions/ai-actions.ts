@@ -304,7 +304,7 @@ export async function getContactAIStatus(whatsappId: string) {
     }
 
     const isAiDisabled = matchingContacts.some(
-      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0 || c.aiEnabled === false
+      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0
     );
     return { success: true, aiEnabled: !isAiDisabled, contactId: contact.id };
   } catch (error: any) {

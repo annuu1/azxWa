@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/features/auth/lib/auth-utils';
+import { getWhatsAppEngineUrl } from '@/shared/config/platform';
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +12,7 @@ export async function GET(
   }
 
   const { sessionId } = await params;
-  const ENGINE_URL = process.env.WHATSAPP_ENGINE_URL || 'http://localhost:3000';
+  const ENGINE_URL = getWhatsAppEngineUrl('3000');
   const API_KEY = process.env.API_KEY || '';
 
   try {

@@ -7,7 +7,6 @@ import { runFollowupStrategyAgent } from './agents/followup-strategy-agent';
 import { runCopywriterAgent } from './agents/copywriter-agent';
 import { runSupervisorArbiter } from './supervisor-arbiter';
 import { SupervisorArbiterResult, AiExecutionMode } from './types';
-import { getWhatsAppService } from '@/features/whatsapp/lib/whatsapp-service';
 
 // Helper to make an LLM call using organization AI settings
 async function makeLlmCall(orgId: string, prompt: string, systemPrompt: string): Promise<string> {

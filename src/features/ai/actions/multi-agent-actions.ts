@@ -417,6 +417,7 @@ export async function getAiDashboardOverview() {
         id: pipelineStages.id,
         name: pipelineStages.name,
         position: pipelineStages.position,
+        pipelineId: pipelineStages.pipelineId,
       })
       .from(pipelineStages)
       .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
@@ -621,7 +622,7 @@ export async function executeFollowupNowAction(leadId: string) {
     let msg = intel.nextSuggestedMessage;
     if (!msg || !msg.trim()) {
       const fresh = await orchestrateLeadIntelligence(orgId, leadId);
-      msg = fresh.strategy.suggestedMessage;
+      msg = fresh.messageDraft?.messageText || fresh.proposedAction?.proposedPayload?.message || '';
     }
 
     if (contact && activeSession && msg) {

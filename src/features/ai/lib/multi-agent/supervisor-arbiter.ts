@@ -5,7 +5,7 @@ import {
   CopywriterMessageDraft, 
   SupervisorArbiterResult, 
   AiExecutionMode 
-} from '../types';
+} from './types';
 
 export function runSupervisorArbiter(
   context: LeadMemoryContext,

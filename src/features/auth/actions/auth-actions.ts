@@ -81,14 +81,14 @@ export async function register(formData: FormData) {
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
-
-    redirect('/dashboard');
   } catch (error: any) {
     if (error.message?.includes('users_email_unique')) {
       return { error: 'Email already exists' };
     }
     return { error: 'Something went wrong' };
   }
+
+  redirect('/dashboard');
 }
 
 export async function logout() {

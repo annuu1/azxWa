@@ -137,7 +137,7 @@ export async function processDueFollowups() {
         // If no message pre-synthesized, trigger the multi-agent team to generate one
         if (!messageToSend || !messageToSend.trim()) {
           const freshIntel = await orchestrateLeadIntelligence(orgId, item.leadId);
-          messageToSend = freshIntel.strategy.suggestedMessage;
+          messageToSend = freshIntel.messageDraft?.messageText || freshIntel.proposedAction?.proposedPayload?.message || '';
         }
 
         if (messageToSend && messageToSend.trim()) {

@@ -1,11 +1,11 @@
 import { IWhatsAppEngineAdapter, NormalizedWebhookEvent, WhatsAppSession } from './types';
+import { getWhatsAppEngineUrl } from '@/shared/config/platform';
 
 export class WWebJSAdapter implements IWhatsAppEngineAdapter {
   name = 'wwebjs';
 
   private get baseUrl(): string {
-    const url = process.env.WHATSAPP_ENGINE_URL || 'http://localhost:3000';
-    return url.replace(/\/+$/, '');
+    return getWhatsAppEngineUrl('3000');
   }
 
   private get apiKey(): string {

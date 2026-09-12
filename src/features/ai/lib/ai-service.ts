@@ -2,6 +2,7 @@ import { db } from '@/shared/database';
 import { aiSettings } from '@/shared/database/schema';
 import { eq } from 'drizzle-orm';
 import { queryKnowledgeBase } from '@/features/knowledge-base/lib/kb-service';
+import { PLATFORM_INFO } from '@/shared/config/platform';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -69,8 +70,8 @@ async function fetchCompletions(
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'HTTP-Referer': process.env.APP_URL || 'http://localhost:9091',
-      'X-Title': process.env.NEXT_PUBLIC_APP_NAME || process.env.APP_NAME || 'AutoZoneX Connect',
+      'HTTP-Referer': PLATFORM_INFO.appUrl,
+      'X-Title': PLATFORM_INFO.name,
     },
     body: JSON.stringify({
       model: targetModel,
