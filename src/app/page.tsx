@@ -120,7 +120,7 @@ export default function LandingPage() {
               className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-all"
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-              <span>+91 7348393452</span>
+              <span>WhatsApp Support</span>
             </a>
 
             <Link
@@ -183,7 +183,7 @@ export default function LandingPage() {
               className="inline-flex items-center justify-center gap-2.5 px-8 py-4 text-base font-semibold rounded-xl bg-[#121824] text-emerald-400 border border-emerald-500/30 hover:bg-emerald-950/30 hover:border-emerald-500/50 transition-all shadow-lg"
             >
               <Smartphone className="w-5 h-5 text-emerald-400" />
-              <span>Chat on WhatsApp (+91 7348393452)</span>
+              <span>Chat on WhatsApp</span>
             </a>
           </div>
 
@@ -804,7 +804,7 @@ export default function LandingPage() {
                 className="inline-flex items-center gap-3 px-8 py-4 text-base font-bold rounded-xl bg-emerald-500 text-white shadow-xl shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all"
               >
                 <Smartphone className="w-5 h-5" />
-                <span>Contact on WhatsApp (+91 7348393452)</span>
+                <span>Contact on WhatsApp</span>
               </a>
 
               <Link
@@ -849,7 +849,7 @@ export default function LandingPage() {
               rel="noopener noreferrer" 
               className="text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-1"
             >
-              <span>+91 7348393452</span>
+              <span>WhatsApp Support</span>
             </a>
           </div>
         </div>
