@@ -103,13 +103,21 @@ export async function aggregateLeadMemory(orgId: string, leadId: string): Promis
   let relevantKnowledgeContext = "";
   try {
     const lastCustomerMsg = chatHistory.filter(m => m.role === "customer").pop();
-    if (lastCustomerMsg && lastCustomerMsg.body) {
-      const kbResults = await queryKnowledgeBase(orgId, lastCustomerMsg.body, 2);
+    const queryPhrases = [
+      lastCustomerMsg?.body || '',
+      humanNotes[0]?.content || '',
+      contactRecord.name || ''
+    ].filter(Boolean).join(' ');
+
+    if (queryPhrases.trim()) {
+      const kbResults = await queryKnowledgeBase(orgId, queryPhrases, 3);
       if (kbResults && kbResults.length > 0) {
-        relevantKnowledgeContext = kbResults.map(k => "[" + k.sourceName + "]: " + k.chunkContent).join("\n\n");
+        relevantKnowledgeContext = kbResults.map(k => `[${k.title || 'Knowledge Base Document'}]: ${k.content}`).join("\n\n");
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("[MemoryAggregator] RAG knowledge retrieval skipped/failed:", e);
+  }
 
   return {
     leadId: leadRecord.id,

@@ -27,7 +27,9 @@ import {
   UserPlus,
   Phone,
   ArrowRight,
-  Search
+  Search,
+  Radio,
+  Send
 } from 'lucide-react';
 import { 
   updateLeadStage, 
@@ -44,7 +46,8 @@ import {
   approveProposalAction, 
   rejectProposalAction,
   toggleAiExecutionModeAction,
-  getAiModeSettingAction
+  getAiModeSettingAction,
+  triggerFollowupWorkerAction
 } from '@/features/ai/actions/multi-agent-actions';
 
 interface PipelineBoardProps {
@@ -79,6 +82,7 @@ export default function PipelineBoard({
   const [aiMode, setAiMode] = useState<'AUTONOMOUS' | 'APPROVAL_REQUIRED'>('APPROVAL_REQUIRED');
   const [togglingMode, setTogglingMode] = useState(false);
   const [approvingProposalId, setApprovingProposalId] = useState<string | null>(null);
+  const [runningWorker, setRunningWorker] = useState(false);
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [expandedColumns, setExpandedColumns] = useState<Record<string, boolean>>({});
 
@@ -284,6 +288,18 @@ export default function PipelineBoard({
     }
   };
 
+  const handleTriggerWorker = async () => {
+    setRunningWorker(true);
+    try {
+      const res = await triggerFollowupWorkerAction();
+      if (res.success) {
+        onUpdate();
+      }
+    } finally {
+      setRunningWorker(false);
+    }
+  };
+
   const handleSaveNewLead = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingLead(true);
@@ -417,6 +433,23 @@ export default function PipelineBoard({
                 Analyze All Leads with AI
               </>
             )}
+          </Button>
+
+          {/* Trigger Due Follow-ups Worker button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTriggerWorker}
+            disabled={runningWorker}
+            title="Execute due follow-ups immediately via background worker"
+            className="text-xs h-8 font-medium border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/50"
+          >
+            {runningWorker ? (
+              <RefreshCw className="animate-spin w-3.5 h-3.5 mr-1.5" />
+            ) : (
+              <Send className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+            )}
+            Process Due Follow-Ups
           </Button>
         </div>
       </div>
@@ -564,10 +597,16 @@ export default function PipelineBoard({
 
                             {/* Next Follow-up Indicator */}
                             {nextFollowup && (
-                              <div className="flex items-center text-[10px] text-blue-700 pt-1 border-t border-gray-200/50 font-medium">
-                                <Clock className="w-3 h-3 mr-1 shrink-0 text-blue-500" />
+                              <div className={`flex items-center text-[10px] pt-1 border-t border-gray-200/50 font-medium ${
+                                nextFollowup <= new Date() 
+                                  ? 'text-red-600 font-bold' 
+                                  : 'text-blue-700'
+                              }`}>
+                                <Clock className={`w-3 h-3 mr-1 shrink-0 ${nextFollowup <= new Date() ? 'text-red-500 animate-pulse' : 'text-blue-500'}`} />
                                 <span className="truncate">
-                                  Follow-up: {nextFollowup.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                  {nextFollowup <= new Date() 
+                                    ? '🔥 Follow-Up Due Now' 
+                                    : `Follow-up: ${nextFollowup.toLocaleDateString([], { month: 'short', day: 'numeric' })}`}
                                 </span>
                               </div>
                             )}

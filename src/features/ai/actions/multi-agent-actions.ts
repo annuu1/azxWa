@@ -261,3 +261,19 @@ export async function getAiModeSettingAction() {
     return { success: false, error: error.message };
   }
 }
+
+// 9. Manually Trigger Follow-Up Worker Loop
+export async function triggerFollowupWorkerAction() {
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
+
+  try {
+    const { processDueFollowups } = await import('../lib/multi-agent/followup-worker');
+    await processDueFollowups();
+    revalidatePath('/dashboard/crm');
+    revalidatePath('/dashboard/inbox');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

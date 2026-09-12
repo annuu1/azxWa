@@ -19,6 +19,10 @@ Rules:
 - Include a low-friction call to action (e.g., "Would you have 5 mins tomorrow?", "Let me know if this sounds like a good fit!").
 Return ONLY a valid JSON object.`;
 
+  const knowledgeSection = context.relevantKnowledgeContext
+    ? `\nCompany Knowledge Base & FAQs (Use these accurate details if relevant):\n${context.relevantKnowledgeContext}\n`
+    : '';
+
   const userPrompt = `Client Context:
 - Name: ${context.contactName}
 - Lead Score: ${profile.leadScore}/100
@@ -27,7 +31,7 @@ Return ONLY a valid JSON object.`;
 - Pain Points: ${profile.painPoints.join(', ') || 'N/A'}
 - Objections to address gently: ${profile.objections.join(', ') || 'N/A'}
 - Relevant Human Notes: ${notesText}
-
+${knowledgeSection}
 Follow-up Goal:
 ${strategy.communicationGoal}
 
