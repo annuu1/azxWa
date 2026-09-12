@@ -15,9 +15,9 @@ const timers: Map<string, NodeJS.Timeout> = globalRef.leadAnalysisQueueTimers;
  *
  * @param orgId Organization ID
  * @param leadId Lead ID to profile
- * @param delayMs Debounce delay in milliseconds (default 25,000ms = 25s)
+ * @param delayMs Debounce delay in milliseconds (default 120,000ms = 120s / 2 minutes)
  */
-export function queueLeadAnalysis(orgId: string, leadId: string, delayMs = 25000): void {
+export function queueLeadAnalysis(orgId: string, leadId: string, delayMs = 120000): void {
   if (!orgId || !leadId) return;
 
   const key = `${orgId}:${leadId}`;

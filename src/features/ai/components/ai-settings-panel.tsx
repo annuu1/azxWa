@@ -223,7 +223,7 @@ export default function AISettingsPanel() {
                   required
                 />
                 <p className="text-[11px] text-gray-500">
-                  The name your AI representative uses when greeting and introducing itself (Default: <strong>Riya</strong>).
+                  The name of your human-like chat representative (Default: <strong>Riya</strong>).
                 </p>
               </div>
 
@@ -239,7 +239,7 @@ export default function AISettingsPanel() {
                   className="bg-white text-xs font-medium"
                 />
                 <p className="text-[11px] text-gray-500">
-                  Used in messages to present your business (e.g. "I'm Riya from [Company]").
+                  Used by the AI representative to represent your company naturally in chat.
                 </p>
               </div>
             </div>

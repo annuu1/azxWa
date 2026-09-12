@@ -106,6 +106,141 @@ async function fetchCompletions(
 }
 
 /**
+ * Convert markdown tables to clean, mobile-friendly WhatsApp bullet lists.
+ * WhatsApp cannot render markdown tables; they appear broken and messy on mobile.
+ */
+export function convertMarkdownTablesToWhatsApp(text: string): string {
+  if (!text || !text.includes('|')) return text;
+
+  const lines = text.split('\n');
+  const resultLines: string[] = [];
+  let tableLines: string[] = [];
+  let inTable = false;
+
+  function flushTable(linesToProcess: string[]) {
+    const nonSep = linesToProcess.filter(l => !/^\s*\|?\s*[-:]+[-| :]*\|?\s*$/.test(l));
+    if (nonSep.length === 0) return;
+
+    const parseCells = (l: string) => {
+      let trimmed = l.trim();
+      if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+      if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
+      return trimmed.split('|').map(c => c.trim());
+    };
+
+    const header = parseCells(nonSep[0]);
+    const rows = nonSep.slice(1).map(parseCells);
+
+    const blocks: string[] = [];
+    if (rows.length === 0) {
+      blocks.push(header.map(c => `• ${c}`).join('\n'));
+    } else {
+      rows.forEach((row, idx) => {
+        const title = row[0] || `Item ${idx + 1}`;
+        const items: string[] = [];
+        for (let i = 1; i < Math.max(header.length, row.length); i++) {
+          const col = header[i] || '';
+          const val = row[i] || '';
+          if (val) {
+            if (col) {
+              items.push(`• *${col}*: ${val}`);
+            } else {
+              items.push(`• ${val}`);
+            }
+          }
+        }
+        if (items.length > 0) {
+          blocks.push(`*${title}*\n${items.join('\n')}`);
+        } else {
+          blocks.push(`• *${title}*`);
+        }
+      });
+    }
+
+    resultLines.push('', blocks.join('\n\n'), '');
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isTable = /^\s*\|.*\|\s*$/.test(line);
+    if (isTable) {
+      tableLines.push(line);
+      inTable = true;
+    } else {
+      if (inTable) {
+        flushTable(tableLines);
+        tableLines = [];
+        inTable = false;
+      }
+      resultLines.push(line);
+    }
+  }
+  if (inTable && tableLines.length > 0) {
+    flushTable(tableLines);
+  }
+
+  return resultLines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * Strips robotic repetitive introductions like:
+ * "I am Riya from Lala Builders." or "This is Riya from Lala Builders."
+ * when communicating in an ongoing WhatsApp chat.
+ */
+export function sanitizeHumanWhatsAppReply(
+  text: string,
+  options?: {
+    isOngoingChat?: boolean;
+    agentName?: string;
+    companyName?: string;
+    userAskedIdentity?: boolean;
+  }
+): string {
+  let cleaned = text.trim();
+
+  // 1. Convert markdown tables if any exist
+  cleaned = convertMarkdownTablesToWhatsApp(cleaned);
+
+  // 2. Strip robotic placeholder brackets if any leaked through
+  cleaned = cleaned.replace(/\[(?:Your Name|Agent Name|My Name|Sender Name|Company|Your Company|Product|Link|Price|Name)\]/gi, '');
+
+  // 3. Strip repetitive introductions like "I'm Riya from Lala Builders" in ongoing chats
+  if ((options?.isOngoingChat || !options?.userAskedIdentity) && !/who (are you|is this)|koun ho/i.test(cleaned)) {
+    const name = (options?.agentName || 'Riya').trim();
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Pattern 1: Direct intro at start: "I am Riya from Lala Builders.", "I'm Riya from..."
+    const directIntro = new RegExp('^(?:I am|I[’\']m|This is|My name is)\\s+' + escapedName + '(?:\\s+(?:from|at|with)\\s+[^.,!\\n]+)?[.,!:]*\\s*', 'i');
+    if (directIntro.test(cleaned)) {
+      const candidate = cleaned.replace(directIntro, '').trim();
+      if (candidate.length > 3) {
+        cleaned = candidate.charAt(0).toUpperCase() + candidate.slice(1);
+      }
+    }
+
+    // Pattern 2: Greeting with intro: "Hi Rahul! 👋 I’m Riya from Lala Builders. How can I help..." -> "Hi Rahul! 👋 How can I help..."
+    const greetingWithIntro = new RegExp('^((?:Hi|Hey|Hello|Good [a-z]+)[^.!?\\n]*[.!?]*\\s*(?:[\\p{Emoji}\\u200d\\uFE0F\\s]*))(?:I am|I[’\']m|This is|My name is)\\s+' + escapedName + '(?:\\s+(?:from|at|with)\\s+[^.,!\\n]+)?[.,!:]*\\s*', 'iu');
+    if (greetingWithIntro.test(cleaned)) {
+      const candidate = cleaned.replace(greetingWithIntro, '$1').trim();
+      if (candidate.length > 5) {
+        cleaned = candidate;
+      }
+    }
+
+    // Pattern 3: Mid-greeting: "Hi My, this is Riya from Lala Builders 😊. I wanted to confirm..."
+    const midGreetingIntro = new RegExp('(?:this is|I am|I[’\']m)\\s+' + escapedName + '(?:\\s+(?:from|at|with)\\s+[^.,!\\n😊👋]+)?[.,!:]*\\s*[😊👋]*\\s*', 'i');
+    if (midGreetingIntro.test(cleaned)) {
+      const candidate = cleaned.replace(midGreetingIntro, '').replace(/^[\\s,.-]+/, '').trim();
+      if (candidate.length > 5) {
+        cleaned = candidate.charAt(0).toUpperCase() + candidate.slice(1);
+      }
+    }
+  }
+
+  return cleaned.trim();
+}
+
+/**
  * Generate AI Response for Auto-Reply
  */
 export async function generateAIResponse(
@@ -138,11 +273,39 @@ export async function generateAIResponse(
   const agentName = (settings.agentName && settings.agentName.trim()) || 'Riya';
   const companyName = (settings.companyName && settings.companyName.trim()) || 'Autozonex';
 
-  const personaContext = `You are ${agentName}, representing ${companyName}.
-RULES:
-- Never use placeholder brackets like [Your Name], [Your Company], [Company], [Product], etc.
-- If introducing yourself, say "I am ${agentName} from ${companyName}".
-- Keep replies concise, helpful, friendly, and natural for WhatsApp conversations.
+  const isOngoingChat = Boolean(history && history.length > 0);
+  const userAskedIdentity = /who (are you|is this)|koun ho|aap koun|what is your name/i.test(incomingMessage);
+
+  const personaContext = `You are ${agentName}, representing ${companyName} on WhatsApp.
+
+CRITICAL HUMAN CONVERSATION & WHATSAPP FORMATTING RULES:
+1. CHAT LIKE A REAL HUMAN ON WHATSAPP:
+   - Talk naturally, warmly, casually, and directly — exactly like an authentic human team member chatting on WhatsApp.
+   - NEVER sound like a robotic IVR, bot, or corporate automated answering script.
+   - If the user writes in Hindi, English, or Hinglish, respond naturally in their language.
+   - Answer the user's specific inquiry directly and clearly without corporate fluff.
+
+2. NEVER REPEATEDLY INTRODUCE YOURSELF:
+   - DO NOT start messages with "I am ${agentName} from ${companyName}" or "This is ${agentName} from ${companyName}".
+   ${isOngoingChat 
+     ? '- THIS IS AN ONGOING CONVERSATION: The customer already knows who you are! DO NOT introduce yourself or your company name. Dive straight into answering their question or continuing the chat.' 
+     : '- For a fresh greeting, a simple natural "Hey there! How can I help you today?" or "Hello! What can I help you with?" is much better than a robotic formulaic introduction.'}
+   - Only state your name or company if the user specifically asks "Who are you?" or "Where are you from?".
+
+3. ABSOLUTELY NO MARKDOWN TABLES:
+   - NEVER generate markdown tables (do NOT use '| Col 1 | Col 2 |' or '|---|---|').
+   - WhatsApp CANNOT render markdown tables. On mobile screens, tables break into messy, unreadable pipe characters.
+   - ALWAYS format lists of properties, products, features, options, or pricing using clean WhatsApp bullet points (•) and bold titles (*title*), separated by neat line breaks.
+   Example of proper WhatsApp formatting:
+   *Kanakpura Road Plot*
+   • Size: 150 sq.yd
+   • Price: ₹70L
+   • Facing: East
+   • USP: High appreciation area
+
+4. CRISP AND MOBILE-FRIENDLY:
+   - Keep messages short (1 to 3 short paragraphs max) so they fit nicely on mobile screens.
+   - Never output bracketed placeholders like [Your Name], [Company], [Price], etc.
 \n`;
 
   const systemPrompt = personaContext + settings.systemPrompt + kbContext;
@@ -157,11 +320,12 @@ RULES:
   console.log(`[AI Service] Attempting response generation using ${primaryProvider} (${primaryModel})...`);
 
   try {
+    let rawResponse = '';
     if (primaryProvider === 'groq') {
       if (!primaryApiKey) {
         throw new Error('Groq API Key is not configured.');
       }
-      return await fetchCompletions(
+      rawResponse = await fetchCompletions(
         'https://api.groq.com/openai/v1/chat/completions',
         primaryApiKey,
         primaryModel,
@@ -173,7 +337,7 @@ RULES:
       if (!primaryApiKey) {
         throw new Error('OpenRouter API Key is not configured.');
       }
-      return await fetchCompletions(
+      rawResponse = await fetchCompletions(
         'https://openrouter.ai/api/v1/chat/completions',
         primaryApiKey,
         primaryModel,
@@ -182,6 +346,13 @@ RULES:
         incomingMessage
       );
     }
+
+    return sanitizeHumanWhatsAppReply(rawResponse, {
+      isOngoingChat,
+      agentName,
+      companyName,
+      userAskedIdentity,
+    });
   } catch (err: any) {
     console.error(`[AI Service] Primary provider ${primaryProvider} failed:`, err.message);
 
@@ -196,7 +367,7 @@ RULES:
 
       console.log(`[AI Service] Triggering Fallback to OpenRouter (${fallbackModel})...`);
       try {
-        return await fetchCompletions(
+        const fallbackResponse = await fetchCompletions(
           'https://openrouter.ai/api/v1/chat/completions',
           fallbackApiKey,
           fallbackModel,
@@ -204,6 +375,12 @@ RULES:
           history,
           incomingMessage
         );
+        return sanitizeHumanWhatsAppReply(fallbackResponse, {
+          isOngoingChat,
+          agentName,
+          companyName,
+          userAskedIdentity,
+        });
       } catch (fallbackErr: any) {
         console.error('[AI Service] Fallback to OpenRouter failed:', fallbackErr.message);
         throw fallbackErr;
@@ -249,8 +426,8 @@ export async function generateSuggestedReply(
   }
 
   const basePrompt = settings?.systemPrompt 
-    ? `${settings.systemPrompt}\n\nINSTRUCTION: Suggest a suitable, professional next message or reply to the user. Keep it natural and ready-to-send. Do not wrap in quotes or code blocks.` 
-    : 'You are a customer service assistant. Suggest a suitable next reply for the customer. Do not include quotes or meta text.';
+    ? `${settings.systemPrompt}\n\nINSTRUCTION: Suggest a natural, human next message to the customer on WhatsApp. Act like a real person chatting. Do NOT repeatedly introduce yourself. NEVER use markdown tables (| Col | Col |); use clean bullet points (•) and bold titles (*title*) instead. Keep it ready-to-send without quotes or code blocks.` 
+    : 'You are a customer service representative chatting on WhatsApp. Suggest a suitable next reply. Act like a real human. Do not repeatedly introduce yourself. NEVER use markdown tables; use clean bullet points (•) instead. Do not include quotes or meta text.';
 
   const systemPrompt = basePrompt + kbContext;
   
@@ -262,7 +439,12 @@ export async function generateSuggestedReply(
   const apiKey = settings?.apiKey || process.env.AI_API_KEY || '';
   const url = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
 
-  return await fetchCompletions(url, apiKey, model, systemPrompt, history);
+  const rawReply = await fetchCompletions(url, apiKey, model, systemPrompt, history);
+  return sanitizeHumanWhatsAppReply(rawReply, {
+    isOngoingChat: history.length > 0,
+    agentName: settings?.agentName || 'Riya',
+    companyName: settings?.companyName || 'Autozonex',
+  });
 }
 
 /**

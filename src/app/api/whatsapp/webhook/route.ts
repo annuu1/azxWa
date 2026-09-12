@@ -197,9 +197,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Trigger debounced autonomous multi-agent lead analysis (25-second silence window)
+      // Trigger debounced autonomous multi-agent lead analysis (120-second silence window)
       if (leadId) {
-        queueLeadAnalysis(orgId, leadId, 25000);
+        queueLeadAnalysis(orgId, leadId, 120000);
       }
     } catch (leadSyncErr: any) {
       console.warn('[Webhook] Lead sync / profiling queue non-blocking error:', leadSyncErr.message);

@@ -44,7 +44,7 @@ export async function getAISettingsData() {
           apiKey: null,
           agentName: 'Riya',
           companyName: org?.name || 'Autozonex',
-          systemPrompt: 'You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.',
+          systemPrompt: 'You are a helpful customer engagement and sales assistant. Act like a real human chatting on WhatsApp. Keep your responses concise, helpful, and natural. Never use markdown tables; use clean bullet points instead.',
         })
         .returning();
     }

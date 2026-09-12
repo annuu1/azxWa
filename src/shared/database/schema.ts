@@ -159,7 +159,7 @@ export const aiSettings = sqliteTable('ai_settings', {
   apiKey: text('api_key'),
   agentName: text('agent_name').default('Riya').notNull(),
   companyName: text('company_name'),
-  systemPrompt: text('system_prompt').default('You are a helpful customer engagement and sales assistant. Keep your responses concise, helpful, and friendly.').notNull(),
+  systemPrompt: text('system_prompt').default('You are a helpful customer engagement and sales assistant. Act like a real human chatting on WhatsApp. Keep your responses concise, helpful, and natural. Never use markdown tables; use clean bullet points instead.').notNull(),
   aiMode: text('ai_mode', { enum: ['AUTONOMOUS', 'APPROVAL_REQUIRED'] }).default('APPROVAL_REQUIRED').notNull(),
   autoFollowupEnabled: integer('auto_followup_enabled', { mode: 'boolean' }).default(true).notNull(),
   minConfidence: text('min_confidence').default('0.75').notNull(),
