@@ -1,16 +1,14 @@
-import AISettingsPanel from "@/features/ai/components/ai-settings-panel";
+import AIActivityCenter from "@/features/ai/components/ai-activity-center";
 
-export default function AISettingsPage() {
+export const metadata = {
+  title: "AI Activity & Lead Command Center | Autozonex",
+  description: "Monitor, orchestrate and control AI multi-agent activities, action proposals and automated follow-ups",
+};
+
+export default function AIAssistantPage() {
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center border-b pb-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">AI Chatbot Settings</h1>
-          <p className="text-gray-500 text-sm mt-1">Configure your AI Auto-Responder models and templates.</p>
-        </div>
-      </div>
-      
-      <AISettingsPanel />
+    <div className="p-4 sm:p-8 space-y-6">
+      <AIActivityCenter />
     </div>
   );
 }

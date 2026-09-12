@@ -11,7 +11,8 @@ import {
   Megaphone, 
   Settings,
   BookOpen,
-  Send
+  Send,
+  Brain
 } from 'lucide-react';
 
 const navItems = [
@@ -19,10 +20,10 @@ const navItems = [
   { name: 'Unified Inbox', href: '/dashboard/inbox', icon: MessageSquare },
   { name: 'WhatsApp Accounts', href: '/dashboard/whatsapp', icon: Smartphone },
   { name: 'Message Center', href: '/dashboard/message-center', icon: Send },
-  { name: 'CRM', href: '/dashboard/crm', icon: Users },
+  { name: 'CRM & Pipeline', href: '/dashboard/crm', icon: Users },
+  { name: 'AI Command Center', href: '/dashboard/ai', icon: Brain },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
   { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: BookOpen },
-  { name: 'AI Settings', href: '/dashboard/ai', icon: Settings },
 ];
 
 interface SidebarNavProps {
