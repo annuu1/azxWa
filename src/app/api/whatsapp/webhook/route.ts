@@ -4,7 +4,12 @@ import { whatsappSessions, contacts, activities, aiSettings } from '@/shared/dat
 import { eq, and, gte, like, or } from 'drizzle-orm';
 import { generateAIResponse } from '@/features/ai/lib/ai-service';
 import { getWhatsAppEngine } from '@/features/whatsapp/lib/engine';
-import { sendMessage as engineSendMessage, fetchMessages as engineFetchMessages, getSessions as engineGetSessions } from '@/features/whatsapp/lib/whatsapp-service';
+import { 
+  sendMessage as engineSendMessage, 
+  fetchMessages as engineFetchMessages, 
+  getSessions as engineGetSessions,
+  sendStateTyping
+} from '@/features/whatsapp/lib/whatsapp-service';
 
 import { realtimeBus } from '@/features/whatsapp/lib/realtime-bus';
 
@@ -88,6 +93,13 @@ export async function POST(req: NextRequest) {
 
     const orgId = session.organizationId;
 
+    // Update session status in database to CONNECTED if it was recorded as disconnected
+    if (session.status !== 'CONNECTED') {
+      await db.update(whatsappSessions)
+        .set({ status: 'CONNECTED', updatedAt: new Date() })
+        .where(eq(whatsappSessions.id, session.id));
+    }
+
     // 2. Resolve or create contact in CRM (Link LID and Phone JIDs)
     const cleanJidNumber = contactWhatsappId.split('@')[0];
     let [contact] = await db
@@ -96,7 +108,10 @@ export async function POST(req: NextRequest) {
       .where(
         and(
           eq(contacts.organizationId, orgId),
-          like(contacts.whatsappId, `%${cleanJidNumber}%`)
+          or(
+            eq(contacts.whatsappId, contactWhatsappId),
+            like(contacts.whatsappId, `%${cleanJidNumber}%`)
+          )
         )
       )
       .limit(1);
@@ -157,21 +172,12 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (!aiConfig || !aiConfig.enabled) {
-      console.log(`[Webhook] AI Auto-Reply skipped: Global AI is disabled for organization ${orgId}`);
+      console.log(`[Webhook] AI Auto-Reply skipped: Global AI is disabled for organization ${orgId} (enabled=${aiConfig?.enabled})`);
       return NextResponse.json({ success: true, message: 'AI Auto-Reply is disabled globally for this organization' });
     }
 
-    // 6. Verify human handoff status (contact-level AI toggle for any matching phone number across orgs)
-    const matchingContacts = await db
-      .select()
-      .from(contacts)
-      .where(
-        like(contacts.whatsappId, `%${cleanJidNumber}%`)
-      );
-
-    const isAiDisabledForContact = matchingContacts.some(
-      (c) => !c.aiEnabled || Number(c.aiEnabled) === 0
-    );
+    // 6. Verify human handoff status (contact-level AI toggle strictly scoped to this organization)
+    const isAiDisabledForContact = !contact.aiEnabled || Number(contact.aiEnabled) === 0 || contact.aiEnabled === false;
 
     // 7. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately
     await db.insert(activities).values({
@@ -192,14 +198,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (isAiDisabledForContact) {
-      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact number).`);
+      console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact).`);
       return NextResponse.json({ success: true, message: 'AI auto-reply paused (contact AI toggle is OFF)' });
     }
 
     // 8. Fetch previous chat history from WhatsApp Engine to construct prompt context (up to 30 messages)
     let history: { role: 'user' | 'model'; content: string }[] = [];
     try {
-      const messages = await engineFetchMessages(sessionId, contactWhatsappId, 30);
+      const messages = await engineFetchMessages(session.sessionId, contactWhatsappId, 30);
       if (messages && messages.length > 0) {
         history = messages
           .filter((m: any) => Boolean(m.body && typeof m.body === 'string' && m.body.trim()))
@@ -214,22 +220,30 @@ export async function POST(req: NextRequest) {
     }
 
     // 9. Request response from AI Service
-    console.log(`[Webhook] Generating AI Auto-Reply for ${contactWhatsappId} with message: "${incomingMessage}"`);
+    console.log(`[Webhook] 🤖 Generating AI Auto-Reply for ${contactWhatsappId} with message: "${incomingMessage}"`);
     const aiResponse = await generateAIResponse(orgId, history, incomingMessage);
 
-    if (aiResponse) {
-      console.log(`[Webhook] Sending AI Auto-Reply to ${contactWhatsappId}: "${aiResponse.substring(0, 50)}..."`);
+    if (aiResponse && aiResponse.trim()) {
+      console.log(`[Webhook] 🚀 Sending AI Auto-Reply to ${contactWhatsappId}: "${aiResponse.substring(0, 60)}..."`);
 
-      // 10. Log AI Outgoing message activity in CRM timeline
+      // Natural typing delay for WhatsApp safety
+      try {
+        await sendStateTyping(session.sessionId, contactWhatsappId);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      } catch (typingErr) {
+        // Non-blocking
+      }
+
+      // 10. Send message via WhatsApp Engine
+      await engineSendMessage(session.sessionId, contactWhatsappId, aiResponse);
+
+      // 11. Log AI Outgoing message activity in CRM timeline
       await db.insert(activities).values({
         organizationId: orgId,
         contactId: contact.id,
         type: 'MESSAGE_SENT',
-        description: `AI Auto-reply: "${aiResponse.substring(0, 60)}${aiResponse.length > 60 ? '...' : ''}"`,
+        description: `AI Auto-reply sent by ${aiConfig.agentName || 'Riya'}: "${aiResponse.substring(0, 80)}${aiResponse.length > 80 ? '...' : ''}"`,
       });
-
-      // 11. Send message via WhatsApp Engine
-      await engineSendMessage(session.sessionId, contactWhatsappId, aiResponse);
 
       realtimeBus.emitMessageSent(orgId, session.sessionId, {
         id: { _serialized: `ai-${Date.now()}` },
