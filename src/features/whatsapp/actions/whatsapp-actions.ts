@@ -249,11 +249,15 @@ export async function getWhatsAppMessages(sessionId: string, chatId: string, lim
 }
 
 import { realtimeBus } from '../lib/realtime-bus';
+import { cancelPendingAutoReply } from '@/features/ai/lib/auto-reply-queue';
 
 export async function sendWhatsAppMessage(sessionId: string, chatId: string, text: string) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
+
+  // Cancel any pending debounced AI auto-reply (human agent intervention)
+  cancelPendingAutoReply(orgId, chatId);
 
   try {
     const response = await engineSendMessage(sessionId, chatId, text);
@@ -295,6 +299,9 @@ export async function sendWhatsAppMediaMessage(sessionId: string, chatId: string
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
 
+  // Cancel any pending debounced AI auto-reply (human agent intervention)
+  cancelPendingAutoReply(orgId, chatId);
+
   try {
     const response = await engineSendMediaMessage(sessionId, chatId, mediaUrl, caption);
 
@@ -331,6 +338,9 @@ export async function sendWhatsAppRichMedia(
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
+
+  // Cancel any pending debounced AI auto-reply (human agent intervention)
+  cancelPendingAutoReply(orgId, chatId);
 
   try {
     const response = await engineSendMedia(sessionId, chatId, mediaType, payload);
@@ -404,6 +414,9 @@ export async function replyToWhatsAppMessage(sessionId: string, chatId: string, 
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
+
+  // Cancel any pending debounced AI auto-reply (human agent intervention)
+  cancelPendingAutoReply(orgId, chatId);
 
   try {
     const response = await engineReplyMessage(sessionId, chatId, quotedMessageId, text);

@@ -10,17 +10,13 @@ import {
   pipelineStages 
 } from '@/shared/database/schema';
 import { eq, and, gte, like, or, asc } from 'drizzle-orm';
-import { generateAIResponse, transcribeAudio } from '@/features/ai/lib/ai-service';
-import { findBrochureOrDocumentMatch } from '@/features/knowledge-base/lib/kb-service';
+import { transcribeAudio } from '@/features/ai/lib/ai-service';
+import { queueAutoReply, cancelPendingAutoReply } from '@/features/ai/lib/auto-reply-queue';
 import { assignLeadRoundRobin } from '@/features/crm/lib/lead-assignment';
 import { queueLeadAnalysis } from '@/features/ai/lib/multi-agent/lead-analysis-queue';
 import { getWhatsAppEngine } from '@/features/whatsapp/lib/engine';
 import { 
-  sendMessage as engineSendMessage, 
-  sendMediaMessage as engineSendMediaMessage,
-  fetchMessages as engineFetchMessages, 
   getSessions as engineGetSessions,
-  sendStateTyping,
   downloadMessageMedia
 } from '@/features/whatsapp/lib/whatsapp-service';
 
@@ -231,9 +227,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Outgoing message handling: record in CRM without forcing permanent AI block
+    // 4. Outgoing message handling: cancel pending auto-replies when human agent replies from phone
     if (fromMe) {
-      return NextResponse.json({ success: true, message: 'Outgoing message logged' });
+      cancelPendingAutoReply(orgId, contactWhatsappId);
+      return NextResponse.json({ success: true, message: 'Outgoing message logged (pending auto-reply cancelled)' });
     }
 
     // 5. Ignore group chats for auto-replies
@@ -288,22 +285,7 @@ export async function POST(req: NextRequest) {
       console.warn('[Webhook] Lead sync / profiling queue non-blocking error:', leadSyncErr.message);
     }
 
-    // 7. Fetch AI settings to verify if global auto-reply is enabled for organization
-    const [aiConfig] = await db
-      .select()
-      .from(aiSettings)
-      .where(eq(aiSettings.organizationId, orgId))
-      .limit(1);
-
-    if (!aiConfig || !aiConfig.enabled) {
-      console.log(`[Webhook] AI Auto-Reply skipped: Global AI is disabled for organization ${orgId} (enabled=${aiConfig?.enabled})`);
-      return NextResponse.json({ success: true, message: 'AI Auto-Reply is disabled globally for this organization' });
-    }
-
-    // 8. Verify human handoff status (contact-level AI toggle strictly scoped to this organization)
-    const isAiDisabledForContact = !contact.aiEnabled || (contact.aiEnabled as unknown) === 0;
-
-    // 9. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately
+    // 7. Log incoming message activity in CRM timeline & dispatch to multi-tenant real-time event bus immediately
     await db.insert(activities).values({
       organizationId: orgId,
       contactId: contact.id,
@@ -321,89 +303,41 @@ export async function POST(req: NextRequest) {
       pushName: contact.name || contact.pushName || undefined,
     });
 
+    // 8. Fetch AI settings to verify if global auto-reply is enabled for organization
+    const [aiConfig] = await db
+      .select()
+      .from(aiSettings)
+      .where(eq(aiSettings.organizationId, orgId))
+      .limit(1);
+
+    if (!aiConfig || !aiConfig.enabled) {
+      console.log(`[Webhook] AI Auto-Reply skipped: Global AI is disabled for organization ${orgId} (enabled=${aiConfig?.enabled})`);
+      return NextResponse.json({ success: true, message: 'Message logged. AI Auto-Reply is disabled globally for this organization' });
+    }
+
+    // 9. Verify human handoff status (contact-level AI toggle strictly scoped to this organization)
+    const isAiDisabledForContact = !contact.aiEnabled || (contact.aiEnabled as unknown) === 0;
     if (isAiDisabledForContact) {
       console.log(`[Webhook] AI Auto-Reply skipped for contact "${contactWhatsappId}" (AI toggle is OFF for this contact).`);
-      return NextResponse.json({ success: true, message: 'AI auto-reply paused (contact AI toggle is OFF)' });
+      return NextResponse.json({ success: true, message: 'Message logged. AI auto-reply paused (contact AI toggle is OFF)' });
     }
 
-    // 10. Fetch previous chat history from WhatsApp Engine to construct prompt context (up to 30 messages)
-    let history: { role: 'user' | 'model'; content: string }[] = [];
-    try {
-      const messages = await engineFetchMessages(session.sessionId, contactWhatsappId, 30);
-      if (messages && messages.length > 0) {
-        history = messages
-          .filter((m: any) => Boolean(m.body && typeof m.body === 'string' && m.body.trim()))
-          .slice(-30)
-          .map((m: any) => ({
-            role: (m.fromMe || m.isFromMe ? 'model' : 'user') as 'user' | 'model',
-            content: m.body as string,
-          }));
-      }
-    } catch (historyErr: any) {
-      console.warn(`[Webhook] Failed to fetch chat history from engine:`, historyErr.message);
-    }
+    // 10. Enqueue AI Auto-Reply with 25-second burst debouncing window
+    // This immediately returns HTTP 200 to WhatsApp engine to prevent timeouts/retries,
+    // groups rapid multi-message bursts from leads, and cancels if human agent intervenes.
+    queueAutoReply({
+      orgId,
+      sessionId: session.sessionId,
+      contactWhatsappId,
+      contactId: contact.id,
+      incomingMessage,
+      delayMs: 25000,
+    });
 
-    // 11. Request response from AI Service
-    console.log(`[Webhook] 🤖 Generating AI Auto-Reply for ${contactWhatsappId} with message: "${incomingMessage}"`);
-    const aiResponse = await generateAIResponse(orgId, history, incomingMessage);
-
-    if (aiResponse && aiResponse.trim()) {
-      console.log(`[Webhook] 🚀 Sending AI Auto-Reply to ${contactWhatsappId}: "${aiResponse.substring(0, 60)}..."`);
-
-      // Natural typing delay for WhatsApp safety
-      try {
-        await sendStateTyping(session.sessionId, contactWhatsappId);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      } catch (typingErr) {
-        // Non-blocking
-      }
-
-      // 12. Check if lead requested brochure, price list, or document & auto-dispatch
-      try {
-        const brochureMatch = await findBrochureOrDocumentMatch(orgId, incomingMessage);
-        if (brochureMatch?.mediaUrl) {
-          console.log(`[Webhook] 📎 Auto-dispatching brochure/document to ${contactWhatsappId}: ${brochureMatch.mediaUrl}`);
-          await engineSendMediaMessage(
-            session.sessionId,
-            contactWhatsappId,
-            brochureMatch.mediaUrl,
-            brochureMatch.title ? `📄 ${brochureMatch.title}` : undefined
-          );
-          await db.insert(activities).values({
-            organizationId: orgId,
-            contactId: contact.id,
-            type: 'MESSAGE_SENT',
-            description: `Auto-dispatched brochure/document: "${brochureMatch.title || brochureMatch.mediaUrl}"`,
-          });
-          // Short pause before conversational reply
-          await new Promise((resolve) => setTimeout(resolve, 800));
-        }
-      } catch (brochureErr: any) {
-        console.warn('[Webhook] Brochure auto-dispatch non-blocking error:', brochureErr.message);
-      }
-
-      // 13. Send message via WhatsApp Engine
-      await engineSendMessage(session.sessionId, contactWhatsappId, aiResponse);
-
-      // 14. Log AI Outgoing message activity in CRM timeline
-      await db.insert(activities).values({
-        organizationId: orgId,
-        contactId: contact.id,
-        type: 'MESSAGE_SENT',
-        description: `AI Auto-reply sent by ${aiConfig.agentName || 'Riya'}: "${aiResponse.substring(0, 80)}${aiResponse.length > 80 ? '...' : ''}"`,
-      });
-
-      realtimeBus.emitMessageSent(orgId, session.sessionId, {
-        id: { _serialized: `ai-${Date.now()}` },
-        from: session.sessionId,
-        to: contactWhatsappId,
-        fromMe: true,
-        body: aiResponse,
-        timestamp: Math.floor(Date.now() / 1000),
-      });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Message received and auto-reply queued (25s debounce)' 
+    });
   } catch (err: any) {
     console.error(`[Webhook] Fatal error processing webhook request:`, err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
