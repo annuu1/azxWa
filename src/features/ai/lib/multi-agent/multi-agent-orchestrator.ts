@@ -66,15 +66,22 @@ export async function orchestrateLeadIntelligence(orgId: string, leadId: string)
   const llmCaller = (prompt: string, sysPrompt: string) => makeLlmCall(orgId, prompt, sysPrompt);
 
   // 3. Agent 1: Lead Profiler & Analyst
-  const profile = await runLeadProfilerAgent(memoryContext, llmCaller);
+  const profile = await runLeadProfilerAgent(memoryContext, llmCaller, settings?.profilerPrompt);
 
   // 4. Agent 2: Follow-up Strategy & Timing
-  const strategy = await runFollowupStrategyAgent(memoryContext, profile, llmCaller);
+  const strategy = await runFollowupStrategyAgent(memoryContext, profile, llmCaller, settings?.strategyPrompt);
 
   // 5. Agent 3: Copywriter Message Draft
   let messageDraft = null;
   if (strategy.shouldSendMessage) {
-    messageDraft = await runCopywriterAgent(memoryContext, profile, strategy, llmCaller);
+    messageDraft = await runCopywriterAgent(
+      memoryContext, 
+      profile, 
+      strategy, 
+      llmCaller, 
+      settings?.copywriterPrompt,
+      settings?.stagnantPrompt
+    );
   }
 
   // 6. Supervisor Arbiter

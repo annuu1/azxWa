@@ -322,21 +322,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Message logged. AI auto-reply paused (contact AI toggle is OFF)' });
     }
 
-    // 10. Enqueue AI Auto-Reply with 25-second burst debouncing window
+    // 10. Enqueue AI Auto-Reply with configurable burst debouncing window
     // This immediately returns HTTP 200 to WhatsApp engine to prevent timeouts/retries,
     // groups rapid multi-message bursts from leads, and cancels if human agent intervenes.
+    const configuredDebounceSeconds = typeof aiConfig.debounceSeconds === 'number' && aiConfig.debounceSeconds >= 5
+      ? aiConfig.debounceSeconds
+      : 25;
+
     queueAutoReply({
       orgId,
       sessionId: session.sessionId,
       contactWhatsappId,
       contactId: contact.id,
       incomingMessage,
-      delayMs: 25000,
+      delayMs: configuredDebounceSeconds * 1000,
     });
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Message received and auto-reply queued (25s debounce)' 
+      message: `Message received and auto-reply queued (${configuredDebounceSeconds}s debounce)` 
     });
   } catch (err: any) {
     console.error(`[Webhook] Fatal error processing webhook request:`, err.message);

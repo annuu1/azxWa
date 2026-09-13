@@ -3,7 +3,8 @@ import { LeadMemoryContext, LeadProfileAnalysis, FollowupStrategyDecision } from
 export async function runFollowupStrategyAgent(
   context: LeadMemoryContext,
   profile: LeadProfileAnalysis,
-  callLlm: (prompt: string, systemPrompt: string) => Promise<string>
+  callLlm: (prompt: string, systemPrompt: string) => Promise<string>,
+  customPrompt?: string | null
 ): Promise<FollowupStrategyDecision> {
   const notesText = context.humanNotes.length > 0
     ? context.humanNotes.map(n => `- [${new Date(n.createdAt).toLocaleDateString()} by ${n.authorName}]: ${n.content}`).join('\n')
@@ -11,13 +12,17 @@ export async function runFollowupStrategyAgent(
 
   const lastMsgs = context.chatHistory.slice(-6).map(m => `${m.sender}: ${m.body}`).join('\n') || 'None';
 
+  const customStrategyText = customPrompt && customPrompt.trim()
+    ? `\nORGANIZATION CUSTOM TIMING & CADENCE RULES:\n${customPrompt.trim()}\n`
+    : '';
+
   const systemPrompt = `You are an expert Sales Strategy & Follow-up Timing Agent.
 Your job is to decide WHEN and WHY the next follow-up should occur with this client, or whether to wait.
 You must carefully evaluate:
 - The lead's current intent, stage, and score
 - Human notes (e.g. if a human note says "Follow up next Tuesday at 3pm", RESPECT IT!)
 - Recent conversation momentum (did the customer just ask a question, or are they waiting on us?)
-
+${customStrategyText}
 Return ONLY a valid JSON object.`;
 
   const userPrompt = `Lead Profile:

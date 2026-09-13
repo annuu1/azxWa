@@ -5,7 +5,9 @@ export async function runCopywriterAgent(
   context: LeadMemoryContext,
   profile: LeadProfileAnalysis,
   strategy: FollowupStrategyDecision,
-  callLlm: (prompt: string, systemPrompt: string) => Promise<string>
+  callLlm: (prompt: string, systemPrompt: string) => Promise<string>,
+  customPrompt?: string | null,
+  stagnantPrompt?: string | null
 ): Promise<CopywriterMessageDraft> {
   const notesText = context.humanNotes.length > 0
     ? context.humanNotes.slice(0, 3).map(n => `- ${n.content}`).join('\n')
@@ -14,6 +16,14 @@ export async function runCopywriterAgent(
   const agentName = context.agentName || 'Riya';
   const companyName = context.companyName || 'Autozonex';
   const greetingName = context.greetingName || 'there';
+
+  const customCopywriterText = customPrompt && customPrompt.trim()
+    ? `\nORGANIZATION CUSTOM COPYWRITING & TONE RULES:\n${customPrompt.trim()}\n`
+    : '';
+
+  const customStagnantText = context.isStagnant && stagnantPrompt && stagnantPrompt.trim()
+    ? `\nORGANIZATION STAGNANT DEAL RE-ACTIVATION RULES:\n${stagnantPrompt.trim()}\n`
+    : '';
 
   const systemPrompt = `You are ${agentName}, a genuine and helpful team member at ${companyName}.
 Your task is to write a warm, human, high-converting WhatsApp message to a lead or customer.
@@ -31,6 +41,7 @@ CRITICAL HUMAN CONVERSATION RULES:
 5. Ground your message in the lead's specific discussion points, needs, or past notes.
 6. End with a simple, low-friction question or call to action (e.g. "Would you have 5 mins for a quick call tomorrow?", "Let me know if you would like me to share more details!").
 7. NEVER output placeholders or brackets like [Your Name], [Your Company], [Company], [Product], [key benefit], [desired outcome], [Name], etc.
+${customCopywriterText}${customStagnantText}
 8. Return ONLY a valid JSON object.`;
 
   const knowledgeSection = context.relevantKnowledgeContext

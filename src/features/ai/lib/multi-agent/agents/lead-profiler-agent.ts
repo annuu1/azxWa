@@ -2,7 +2,8 @@ import { LeadMemoryContext, LeadProfileAnalysis } from '../types';
 
 export async function runLeadProfilerAgent(
   context: LeadMemoryContext,
-  callLlm: (prompt: string, systemPrompt: string) => Promise<string>
+  callLlm: (prompt: string, systemPrompt: string) => Promise<string>,
+  customPrompt?: string | null
 ): Promise<LeadProfileAnalysis> {
   const notesText = context.humanNotes.length > 0
     ? context.humanNotes.map(n => `- [${new Date(n.createdAt).toLocaleDateString()} by ${n.authorName}]: ${n.content}`).join('\n')
@@ -15,12 +16,16 @@ export async function runLeadProfilerAgent(
   const tagsText = context.assignedTags.map(t => t.name).join(', ') || 'None';
   const stagesText = context.pipelineStages.map(s => s.name).join(' -> ');
 
+  const customCriteriaText = customPrompt && customPrompt.trim()
+    ? `\nORGANIZATION CUSTOM PROFILING GUIDELINES:\n${customPrompt.trim()}\n`
+    : '';
+
   const systemPrompt = `You are an elite Sales Intelligence & Lead Profiler Agent.
 Your job is to deeply analyze a sales lead by synthesizing:
 1. Human Sales Notes (CRITICAL - prioritize facts and observations recorded by human sales reps)
 2. WhatsApp Chat History
 3. Current Pipeline Stage and Tags
-
+${customCriteriaText}
 You must extract BANT facts (Budget, Authority, Need, Timeline), client sentiment, buying intent, pain points, objections, and calculate a realistic Lead Score (0-100).
 Return ONLY a valid JSON object.`;
 

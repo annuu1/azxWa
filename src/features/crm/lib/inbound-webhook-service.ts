@@ -346,6 +346,16 @@ export async function processInboundLeadWebhook(
 
           // Natural, warm, human welcome greeting
           let welcomeText = payload.welcomeMessage?.trim();
+          if (!welcomeText && aiConfig?.inboundAdPrompt?.trim()) {
+            welcomeText = aiConfig.inboundAdPrompt
+              .replace(/{{firstName}}/gi, firstName)
+              .replace(/{{name}}/gi, rawName)
+              .replace(/{{companyName}}/gi, companyName)
+              .replace(/{{agentName}}/gi, agentName)
+              .replace(/{{campaignName}}/gi, campaignName || fullSource)
+              .replace(/{{leadNotes}}/gi, leadNotes || '')
+              .replace(/{{source}}/gi, fullSource);
+          }
           if (!welcomeText) {
             welcomeText = `Hi ${firstName}! 👋 Thanks for your interest in ${campaignName || fullSource}.\n\nI'm ${agentName} from ${companyName}. How can I help you with details today?`;
             if (leadNotes) {

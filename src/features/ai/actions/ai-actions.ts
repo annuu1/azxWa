@@ -45,6 +45,12 @@ export async function getAISettingsData() {
           agentName: 'Riya',
           companyName: org?.name || 'Autozonex',
           systemPrompt: 'You are a helpful customer engagement and sales assistant. Act like a real human chatting on WhatsApp. Keep your responses concise, helpful, and natural. Never use markdown tables; use clean bullet points instead.',
+          debounceSeconds: 25,
+          profilerPrompt: null,
+          strategyPrompt: null,
+          copywriterPrompt: null,
+          stagnantPrompt: null,
+          inboundAdPrompt: null,
         })
         .returning();
     }
@@ -53,6 +59,12 @@ export async function getAISettingsData() {
       ...settings,
       agentName: settings.agentName || 'Riya',
       companyName: settings.companyName || org?.name || 'Autozonex',
+      debounceSeconds: settings.debounceSeconds ?? 25,
+      profilerPrompt: settings.profilerPrompt || '',
+      strategyPrompt: settings.strategyPrompt || '',
+      copywriterPrompt: settings.copywriterPrompt || '',
+      stagnantPrompt: settings.stagnantPrompt || '',
+      inboundAdPrompt: settings.inboundAdPrompt || '',
       apiKey: settings.apiKey ? '••••••••••••••••' : '',
     };
 
@@ -74,7 +86,13 @@ export async function saveAISettings(
   agentName?: string,
   companyName?: string,
   stagnantReactivationEnabled?: boolean,
-  stagnantHoursThreshold?: number
+  stagnantHoursThreshold?: number,
+  debounceSeconds?: number,
+  profilerPrompt?: string | null,
+  strategyPrompt?: string | null,
+  copywriterPrompt?: string | null,
+  stagnantPrompt?: string | null,
+  inboundAdPrompt?: string | null
 ) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
@@ -96,6 +114,7 @@ export async function saveAISettings(
     const finalCompanyName = companyName?.trim() || null;
     const finalStagnantEnabled = stagnantReactivationEnabled !== undefined ? Boolean(stagnantReactivationEnabled) : true;
     const finalStagnantHours = typeof stagnantHoursThreshold === 'number' && stagnantHoursThreshold > 0 ? stagnantHoursThreshold : 48;
+    const finalDebounceSeconds = typeof debounceSeconds === 'number' && debounceSeconds >= 5 && debounceSeconds <= 300 ? debounceSeconds : 25;
 
     await db
       .insert(aiSettings)
@@ -110,6 +129,12 @@ export async function saveAISettings(
         systemPrompt,
         stagnantReactivationEnabled: finalStagnantEnabled,
         stagnantHoursThreshold: finalStagnantHours,
+        debounceSeconds: finalDebounceSeconds,
+        profilerPrompt: profilerPrompt?.trim() || null,
+        strategyPrompt: strategyPrompt?.trim() || null,
+        copywriterPrompt: copywriterPrompt?.trim() || null,
+        stagnantPrompt: stagnantPrompt?.trim() || null,
+        inboundAdPrompt: inboundAdPrompt?.trim() || null,
       })
       .onConflictDoUpdate({
         target: aiSettings.organizationId,
@@ -123,6 +148,12 @@ export async function saveAISettings(
           systemPrompt,
           stagnantReactivationEnabled: finalStagnantEnabled,
           stagnantHoursThreshold: finalStagnantHours,
+          debounceSeconds: finalDebounceSeconds,
+          profilerPrompt: profilerPrompt?.trim() || null,
+          strategyPrompt: strategyPrompt?.trim() || null,
+          copywriterPrompt: copywriterPrompt?.trim() || null,
+          stagnantPrompt: stagnantPrompt?.trim() || null,
+          inboundAdPrompt: inboundAdPrompt?.trim() || null,
           updatedAt: new Date(),
         },
       });
