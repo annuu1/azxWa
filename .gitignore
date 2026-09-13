@@ -24,6 +24,8 @@
 .DS_Store
 *.pem
 *.db*
+/public/uploads/*
+!/public/uploads/.gitkeep
 
 # debug
 npm-debug.log*

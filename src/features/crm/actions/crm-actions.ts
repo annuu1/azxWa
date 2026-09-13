@@ -12,7 +12,9 @@ import {
   notes, 
   activities,
   leadIntelligence,
-  aiActionProposals
+  aiActionProposals,
+  organizations,
+  whatsappSessions
 } from '@/shared/database/schema';
 import { getSession } from '@/features/auth/lib/auth-utils';
 import { revalidatePath } from 'next/cache';
@@ -731,5 +733,70 @@ export async function removeTagFromContact(contactId: string, tagId: string) {
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetch inbound webhook integration details for the current organization
+ */
+export async function getInboundWebhookInfo() {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+
+    if (!org) throw new Error('Organization not found');
+
+    const appUrl = process.env.APP_URL || 'http://localhost:9091';
+    const token = org.webhookToken || org.id;
+
+    // Check connected WhatsApp sessions
+    const connectedSessions = await db
+      .select({ id: whatsappSessions.id })
+      .from(whatsappSessions)
+      .where(
+        and(
+          eq(whatsappSessions.organizationId, orgId),
+          eq(whatsappSessions.status, 'CONNECTED')
+        )
+      );
+
+    return {
+      success: true,
+      orgId: org.id,
+      orgName: org.name,
+      webhookToken: token,
+      endpointUrl: `${appUrl}/api/webhooks/inbound/${token}`,
+      genericUrl: `${appUrl}/api/webhooks/inbound`,
+      hasConnectedWhatsApp: connectedSessions.length > 0,
+      connectedSessionsCount: connectedSessions.length,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Test & simulate an inbound lead webhook execution from the CRM dashboard
+ */
+export async function simulateInboundLeadAction(payload: any) {
+  const userSession = await getSession();
+  if (!userSession) throw new Error('Unauthorized');
+  const orgId = userSession.organizationId as string;
+
+  try {
+    const { processInboundLeadWebhook } = await import('../lib/inbound-webhook-service');
+    const result = await processInboundLeadWebhook(orgId, payload);
+    revalidatePath('/dashboard/crm');
+    revalidatePath('/dashboard');
+    return result;
+  } catch (err: any) {
+    return { success: false, status: 500, error: err.message };
   }
 }

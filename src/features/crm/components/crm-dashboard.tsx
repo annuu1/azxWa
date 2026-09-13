@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
-import { RefreshCw, Users, Layers, Tag, Plus, PlusCircle } from 'lucide-react';
+import { RefreshCw, Users, Layers, Tag, Plus, PlusCircle, Webhook } from 'lucide-react';
 import { getOrgContacts, getPipelineData, getOrgAgents, getOrgTags, createOrgTag } from '../actions/crm-actions';
 import ContactsList from './contacts-list';
 import PipelineBoard from './pipeline-board';
 import ContactDetailsModal from './contact-details-modal';
+import InboundWebhookCard from './inbound-webhook-card';
 
 export default function CRMDashboard() {
-  const [activeTab, setActiveTab] = useState<'contacts' | 'pipeline' | 'tags'>('contacts');
+  const [activeTab, setActiveTab] = useState<'contacts' | 'pipeline' | 'tags' | 'webhook'>('contacts');
   const [loading, setLoading] = useState(true);
   const [contacts, setContacts] = useState<any[]>([]);
   const [pipeline, setPipeline] = useState<any>({ stages: [], leads: [] });
@@ -86,24 +87,30 @@ export default function CRMDashboard() {
       </div>
 
       {/* Tab Selectors */}
-      <div className="flex border-b border-gray-200 pb-0.5 space-x-6">
+      <div className="flex border-b border-gray-200 pb-0.5 space-x-6 overflow-x-auto">
         <button
           onClick={() => setActiveTab('contacts')}
-          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 ${activeTab === 'contacts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 whitespace-nowrap ${activeTab === 'contacts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
         >
           <Users className="w-4 h-4 mr-2" /> Contacts Directory
         </button>
         <button
           onClick={() => setActiveTab('pipeline')}
-          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 ${activeTab === 'pipeline' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 whitespace-nowrap ${activeTab === 'pipeline' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
         >
           <Layers className="w-4 h-4 mr-2" /> Deals Pipeline
         </button>
         <button
           onClick={() => setActiveTab('tags')}
-          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 ${activeTab === 'tags' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 whitespace-nowrap ${activeTab === 'tags' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
         >
           <Tag className="w-4 h-4 mr-2" /> Contact Tags
+        </button>
+        <button
+          onClick={() => setActiveTab('webhook')}
+          className={`flex items-center pb-3 text-sm font-semibold border-b-2 transition-all px-1 whitespace-nowrap ${activeTab === 'webhook' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+        >
+          <Webhook className="w-4 h-4 mr-2" /> Ad Lead Webhook
         </button>
       </div>
 
@@ -198,6 +205,10 @@ export default function CRMDashboard() {
                 </CardContent>
               </Card>
             </div>
+          )}
+
+          {activeTab === 'webhook' && (
+            <InboundWebhookCard />
           )}
         </div>
       )}

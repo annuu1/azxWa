@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 export const organizations = sqliteTable('organizations', {
   id: text('id').primaryKey().$defaultFn(() => uuidv4()),
   name: text('name').notNull(),
+  webhookToken: text('webhook_token').$defaultFn(() => 'whsec_' + uuidv4().replace(/-/g, '')),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
