@@ -1,5 +1,36 @@
 # AutoZoneX Connect — Changelog & Release Notes
 
+## [v2.1.1-LTS] — 2026-09-13
+**Branch**: `release/v2.1.0-lts` | **Status**: Production Long-Term Support (LTS)
+
+### 🌟 Major Highlights & Production Features
+
+#### 1. Asynchronous WhatsApp Auto-Reply Queue & Burst Debouncing (5s–120s)
+- **Immediate Webhook Return**: Incoming message webhook now responds with `HTTP 200 OK` in `< 30ms`, completely eliminating engine timeouts and duplicate reply loops.
+- **Configurable Burst Debounce Window**: When a lead sends rapid fragmented messages in succession (e.g. *"Hi"* $\rightarrow$ *"What is the price?"* $\rightarrow$ *"Can I visit tomorrow?"*), the engine buffers them, aggregates them with `\n`, and generates a single context-rich reply.
+- **Tenant-Level UI Controls**: Dynamic slider and numeric box (5s to 120s) with 1-click presets (`10s`, `15s`, `25s`, `35s`, `45s`, `60s`) in the AI Settings UI.
+
+#### 2. Human Agent Intervention Safety Intercept
+- **Phone Replies (`fromMe: true`)**: When an agent replies directly from their physical phone via WhatsApp, the outgoing event cancels any pending auto-reply timer for that contact immediately.
+- **Unified Inbox Replies**: Sending messages, media, or replies from the web UI automatically clears pending auto-reply jobs, guaranteeing the AI never talks over human agents.
+
+#### 3. Hybrid Chat History Retrieval Fallback
+- **Engine + CRM Fallback**: Automatically attempts to fetch chat history from the WhatsApp engine, and seamlessly falls back to CRM `activities` (`MESSAGE_RECEIVED` / `MESSAGE_SENT`) when engine cache is cold or restarted.
+
+#### 4. Multi-Agent Prompts Studio UI
+- **6 Dedicated Agent Tabs**: Full prompt customization for each autonomous AI agent:
+  - 💬 Conversational Auto-Responder (`systemPrompt`)
+  - 🎯 Lead Profiler & Scorer (`profilerPrompt`)
+  - ⏱️ Follow-up Cadence & Timing (`strategyPrompt`)
+  - ✍️ Copywriter & Outreach (`copywriterPrompt`)
+  - ⚡ Stagnant Deal Re-Activator (`stagnantPrompt`)
+  - 📣 Instant Ad Lead Greeting (`inboundAdPrompt` with variable chips)
+- **1-Click Industry Templates**: Pre-crafted prompts for Real Estate, E-Commerce, B2B SaaS, and Clinics.
+
+#### 5. Strict Anti-Hallucination & Robust Media Detection
+- **Anti-Hallucination Guardrail**: Injected Rule 5 into AI system prompts, prohibiting fabricated pricing, unit sizes, or inventory.
+- **Non-Captioned Media Handling**: Auto-detects and tags images, videos, audio/voice notes, and documents sent without text captions.
+
 ## [v2.1.0-LTS] — 2026-09-13
 **Branch**: `release/v2.1.0-lts` | **Status**: Production Long-Term Support (LTS)
 
