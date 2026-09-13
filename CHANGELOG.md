@@ -1,7 +1,56 @@
 # AutoZoneX Connect — Changelog & Release Notes
 
+## [v2.1.0-LTS] — 2026-09-13
+**Branch**: `release/v2.1.0-lts` | **Status**: Production Long-Term Support (LTS)
+
+### 🌟 Major Highlights & Production Features
+
+#### 1. Inbound Webhook for Instant Ad Lead Engagement
+- **Dedicated Multi-Tenant Endpoints**:
+  - Direct Token Endpoint: `POST /api/webhooks/inbound/[token]`
+  - Generic Authenticated Endpoint: `POST /api/webhooks/inbound` (accepts `x-api-key`, `x-webhook-token`, or `?token=...`)
+  - Supports standard JSON payloads and HTML form submissions (`application/x-www-form-urlencoded` / `multipart/form-data`) from Meta Lead Ads, Google Ads, Zapier, Make.com, and Webflow forms.
+- **Instant Autonomous Lead Engagement**:
+  - Normalizes international phone formats into valid WhatsApp JIDs.
+  - Automatically resolves or registers CRM Contacts and Pipeline Deals.
+  - Automatically runs Balanced Round-Robin Assignment to distribute leads to sales reps.
+  - Auto-attaches tags based on ad platform, campaign name, and payload attributes.
+  - Sends an instant, warm, human-like WhatsApp welcome message referencing the lead's name, campaign, and specific inquiry.
+  - Auto-dispatches requested brochures/PDF documents over WhatsApp simultaneously.
+  - Automatically queues the lead for 120-second debounced autonomous AI profiling.
+- **CRM Webhook Command Center**:
+  - Integrated "Ad Lead Webhook" tab in `/dashboard/crm` with copyable URLs, secret token manager, and live WhatsApp session status.
+  - Interactive Lead Simulator form for 1-click live testing directly from the web UI.
+
+#### 2. Executive Analytics & Real-Time KPI Overview Dashboard (`/dashboard`)
+- **Executive Command Center**:
+  - 4 High-impact KPI cards: Active Contacts, Pipeline Deals, Hot Leads (High-Intent), and WhatsApp 24h Traffic.
+  - Urgent Human Escalation Banner: Real-time alerts for customer inquiries requiring manual agent intervention.
+  - Visual Pipeline Progression Funnel: Deal distribution across customized pipeline stages with relative percentage indicators.
+  - Lead Intent Breakdown Matrix: Proportions of HIGH, MEDIUM, LOW, and UNQUALIFIED leads with average lead qualification score.
+  - Live Real-Time Activity Feed: Audit log of inbound messages, outbound AI replies, auto-dispatches, and round-robin assignments.
+  - WhatsApp Session Health Monitor & Quick Shortcuts.
+
+#### 3. WhatsApp Voice Note Audio Transcription (Groq Whisper `whisper-large-v3`)
+- **Audio Webhook Interception**: Detects incoming voice notes (`ptt`, `audio`, `audio/ogg`) in the webhook pipeline.
+- **Engine Media Fetcher**: Implemented `downloadMessageMedia` in OpenWA engine adapter to stream audio binaries directly from the session.
+- **Groq Whisper Transcription**: Calls `whisper-large-v3` with multipart form-data and Cloudflare-safe headers.
+- **Holistic AI Integration**: Transcribed speech is recorded in the CRM activity timeline, fed to the AI auto-reply engine, and submitted into the 120-second debounced autonomous lead profiler.
+
+#### 4. Knowledge Base Media & Brochure Auto-Dispatch
+- **Media Schema Migration**: Added `mediaUrl` column to `knowledge_chunks` and `knowledge_sources`.
+- **Persistent Disk Uploads**: Uploaded PDF/DOCX files are persisted to `/public/uploads/kb/` with direct download URLs assigned to chunks.
+- **Knowledge Base UI**: Added optional Brochure/Media URL field when creating FAQ entries, with visual auto-dispatch badges on documents and FAQs.
+- **Autonomous Auto-Dispatch**: When a customer on WhatsApp asks for a brochure, catalog, price sheet, or floor plan, the system automatically detects the request and dispatches the PDF document over WhatsApp alongside the AI conversational reply.
+
+#### 5. Autonomous Balanced Round-Robin Lead Assignment
+- **Workload-Aware Distribution**: Algorithm calculates active lead volume across all organization agents and admins (`ORG_ADMIN`, `AGENT`) and automatically assigns incoming leads to the rep with the lowest current workload.
+- **Zero-Touch Triage**: Applied automatically across inbound ad webhooks, incoming WhatsApp messages from new contacts, and unassigned leads.
+
+---
+
 ## [v2.0.0-LTS] — 2026-09-13
-**Branch**: `ai-multi-agent-system` | **Status**: Production Long-Term Support (LTS)
+**Branch**: `release/v2.0.0-lts` | **Status**: Production Long-Term Support (LTS)
 
 ### 🌟 Major Highlights & Architecture Upgrades
 
