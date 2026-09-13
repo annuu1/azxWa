@@ -497,8 +497,8 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
           body: bodyText,
           isGroup,
           timestamp: msg.timestamp || msg.t,
-          hasMedia: Boolean(msg.hasMedia || msg.mediaUrl),
-          mediaUrl: msg.mediaUrl,
+          hasMedia: Boolean(msg.hasMedia || msg.mediaUrl || msg.media || (msg.type && msg.type !== 'text' && msg.type !== 'chat')),
+          mediaUrl: msg.mediaUrl || msg.media?.url,
           raw: body,
         },
       };

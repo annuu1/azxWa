@@ -162,10 +162,11 @@ export async function POST(req: NextRequest) {
         console.warn(`[Webhook] Voice note transcription failed:`, transcribeErr.message);
         incomingMessage = '🎙️ [Voice Note]';
       }
-    } else if (!incomingMessage && data.hasMedia) {
-      if (msgType === 'image') incomingMessage = '📷 [Photo]';
-      else if (msgType === 'video') incomingMessage = '🎥 [Video]';
-      else if (msgType === 'document') incomingMessage = '📄 [Document]';
+    } else if (!incomingMessage && (data.hasMedia || rawMsg.media || (msgType && msgType !== 'text' && msgType !== 'chat'))) {
+      if (msgType.includes('image')) incomingMessage = '📷 [Photo]';
+      else if (msgType.includes('video')) incomingMessage = '🎥 [Video]';
+      else if (msgType.includes('document')) incomingMessage = '📄 [Document]';
+      else if (msgType.includes('audio') || msgType.includes('ptt')) incomingMessage = '🎙️ [Voice Note]';
       else incomingMessage = '📎 [Attachment]';
     }
 
