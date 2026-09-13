@@ -516,3 +516,73 @@ export async function qualifyLeadFromChat(
     return {};
   }
 }
+
+/**
+ * Transcribe WhatsApp voice notes or audio recordings using Groq Whisper (whisper-large-v3).
+ */
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  mimeType = 'audio/ogg',
+  organizationId?: string
+): Promise<string> {
+  try {
+    let apiKey = process.env.AI_API_KEY || '';
+    if (organizationId) {
+      const [settings] = await db
+        .select()
+        .from(aiSettings)
+        .where(eq(aiSettings.organizationId, organizationId))
+        .limit(1);
+      if (settings?.apiKey) {
+        apiKey = settings.apiKey;
+      }
+    }
+
+    if (!apiKey) {
+      console.warn('[AI Service] No API key available for audio transcription');
+      return '';
+    }
+
+    const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
+      : mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3'
+      : mimeType.includes('wav') ? 'wav'
+      : 'ogg';
+
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+    const headerPart = Buffer.from(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="model"\r\n\r\n` +
+      `whisper-large-v3\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="voice_note.${ext}"\r\n` +
+      `Content-Type: ${mimeType}\r\n\r\n`
+    );
+    const footerPart = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const fullBody = Buffer.concat([headerPart, audioBuffer, footerPart]);
+
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      body: fullBody,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[AI Service] Groq Whisper failed (${res.status}): ${errText}`);
+      return '';
+    }
+
+    const data = await res.json();
+    const text = (data.text || '').trim();
+    console.log(`[AI Service] 🎙️ Audio transcribed successfully (${text.length} chars): "${text}"`);
+    return text;
+  } catch (err: any) {
+    console.error('[AI Service] Audio transcription error:', err.message);
+    return '';
+  }
+}
+

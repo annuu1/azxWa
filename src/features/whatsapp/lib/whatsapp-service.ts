@@ -142,3 +142,11 @@ export async function clearState(sessionId: string, chatId: string) {
   const engine = getWhatsAppEngine();
   return await engine.clearState(sessionId, chatId);
 }
+
+export async function downloadMessageMedia(sessionId: string, chatId: string, messageId: string) {
+  const engine = getWhatsAppEngine();
+  if (engine.downloadMessageMedia) {
+    return await engine.downloadMessageMedia(sessionId, chatId, messageId);
+  }
+  return null;
+}

@@ -447,6 +447,24 @@ export class OpenWAAdapter implements IWhatsAppEngineAdapter {
     }).catch(() => null);
   }
 
+  async downloadMessageMedia(sessionId: string, chatId: string, messageId: string): Promise<{ buffer: Buffer; mimetype: string } | null> {
+    try {
+      const targetId = await this.resolveSessionId(sessionId);
+      const url = `${this.baseUrl}/api/sessions/${targetId}/messages/${encodeURIComponent(chatId)}/${encodeURIComponent(messageId)}/media`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn(`[OpenWAAdapter] downloadMessageMedia HTTP ${res.status} for ${messageId}`);
+        return null;
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      const mimetype = res.headers.get('content-type') || 'audio/ogg';
+      return { buffer: Buffer.from(arrayBuffer), mimetype };
+    } catch (err: any) {
+      console.warn('[OpenWAAdapter] downloadMessageMedia error:', err.message);
+      return null;
+    }
+  }
+
   parseWebhookPayload(body: any, overrideSessionId?: string): NormalizedWebhookEvent | null {
     if (!body) return null;
 

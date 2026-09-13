@@ -56,7 +56,7 @@ export async function getKnowledgeChunksAction(sourceId: string) {
 /**
  * Create a new FAQ entry (adds a Q&A chunk to the global FAQ source)
  */
-export async function createFAQEntryAction(question: string, answer: string) {
+export async function createFAQEntryAction(question: string, answer: string, mediaUrl?: string) {
   const userSession = await getSession();
   if (!userSession) throw new Error('Unauthorized');
   const orgId = userSession.organizationId as string;
@@ -92,6 +92,7 @@ export async function createFAQEntryAction(question: string, answer: string) {
       sourceId: faqSource.id,
       title: question,
       content: answer,
+      mediaUrl: mediaUrl?.trim() || null,
     });
 
     revalidatePath('/dashboard/knowledge-base');

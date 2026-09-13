@@ -33,6 +33,7 @@ interface Source {
   name: string;
   type: string;
   status: string;
+  mediaUrl?: string | null;
   createdAt: any;
 }
 
@@ -40,6 +41,7 @@ interface Chunk {
   id: string;
   title: string | null;
   content: string;
+  mediaUrl?: string | null;
   createdAt: any;
 }
 
@@ -61,6 +63,7 @@ export default function KBPanel() {
 
   const [faqQuestion, setFaqQuestion] = useState('');
   const [faqAnswer, setFaqAnswer] = useState('');
+  const [faqMediaUrl, setFaqMediaUrl] = useState('');
   const [submittingFaq, setSubmittingFaq] = useState(false);
 
   // Search filter
@@ -187,11 +190,12 @@ export default function KBPanel() {
     setSuccessMsg('');
 
     try {
-      const res = await createFAQEntryAction(faqQuestion.trim(), faqAnswer.trim());
+      const res = await createFAQEntryAction(faqQuestion.trim(), faqAnswer.trim(), faqMediaUrl.trim() || undefined);
       if (res.success) {
         setSuccessMsg('FAQ entry created successfully!');
         setFaqQuestion('');
         setFaqAnswer('');
+        setFaqMediaUrl('');
         await loadData();
       } else {
         throw new Error(res.error || 'Failed to save FAQ.');
@@ -467,6 +471,19 @@ export default function KBPanel() {
                       className="w-full min-h-[100px] bg-white border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal leading-relaxed resize-none"
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase">Brochure / Media Link (Optional)</label>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/brochure.pdf"
+                      value={faqMediaUrl}
+                      onChange={(e) => setFaqMediaUrl(e.target.value)}
+                      className="bg-white"
+                    />
+                    <p className="text-[10px] text-gray-400">
+                      Direct PDF or image URL to auto-dispatch over WhatsApp when leads ask for brochures or price sheets.
+                    </p>
+                  </div>
                   <Button
                     type="submit"
                     disabled={submittingFaq}
@@ -536,9 +553,21 @@ export default function KBPanel() {
                             <span className="font-semibold text-sm text-gray-900 block truncate max-w-[280px]">
                               {file.name}
                             </span>
-                            <span className="text-[10px] text-gray-400 block mt-0.5">
-                              Uploaded {new Date(file.createdAt).toLocaleDateString()}
-                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-gray-400 block">
+                                Uploaded {new Date(file.createdAt).toLocaleDateString()}
+                              </span>
+                              {file.mediaUrl && (
+                                <a
+                                  href={file.mediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-600 hover:text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200"
+                                >
+                                  <FileText className="w-2.5 h-2.5" /> PDF Asset
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -640,6 +669,21 @@ export default function KBPanel() {
                             {faq.content}
                           </p>
                         </div>
+                        {faq.mediaUrl && (
+                          <div className="flex items-center gap-1.5 border-t border-gray-50 pt-2 text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 shrink-0">
+                              <FileText className="w-3 h-3" /> Auto-Dispatch:
+                            </span>
+                            <a
+                              href={faq.mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
+                            >
+                              {faq.mediaUrl} <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

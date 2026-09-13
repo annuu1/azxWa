@@ -74,5 +74,6 @@ export interface IWhatsAppEngineAdapter {
   getProfilePicture?(sessionId: string, contactId: string): Promise<string | null>;
   sendStateTyping(sessionId: string, chatId: string): Promise<any>;
   clearState(sessionId: string, chatId: string): Promise<any>;
+  downloadMessageMedia?(sessionId: string, chatId: string, messageId: string): Promise<{ buffer: Buffer; mimetype: string } | null>;
   parseWebhookPayload(body: any, overrideSessionId?: string): NormalizedWebhookEvent | null;
 }

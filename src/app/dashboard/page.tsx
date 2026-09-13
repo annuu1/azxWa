@@ -1,7 +1,9 @@
 import { getSession } from "@/features/auth/lib/auth-utils";
-import { logout } from "@/features/auth/actions/auth-actions";
-import { Button } from "@/shared/components/ui/button";
 import { redirect } from "next/navigation";
+import { getDashboardMetrics } from "@/features/analytics/actions/analytics-actions";
+import { DashboardOverview } from "@/features/analytics/components/dashboard-overview";
+
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -10,22 +12,16 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+  const metrics = await getDashboardMetrics();
+
+  if (!metrics) {
+    return (
+      <div className="p-8">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <form action={logout}>
-          <Button type="submit">Logout</Button>
-        </form>
+        <p className="text-gray-500 mt-2">Failed to load organization metrics. Please refresh or verify your account.</p>
       </div>
-      <div className="bg-white shadow rounded-lg p-6">
-        <p className="text-gray-600">Welcome back!</p>
-        <div className="mt-4 space-y-2">
-          <p><strong>Organization ID:</strong> {session.organizationId as string}</p>
-          <p><strong>User ID:</strong> {session.userId as string}</p>
-          <p><strong>Role:</strong> {session.role as string}</p>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  }
+
+  return <DashboardOverview metrics={metrics} />;
 }

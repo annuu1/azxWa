@@ -1,6 +1,6 @@
 import { db } from '@/shared/database';
 import { knowledgeSources, knowledgeChunks } from '@/shared/database/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 
@@ -98,7 +98,7 @@ export async function queryKnowledgeBase(
   organizationId: string,
   query: string,
   limit = 4
-): Promise<{ title: string | null; content: string }[]> {
+): Promise<{ title: string | null; content: string; mediaUrl?: string | null }[]> {
   try {
     // 1. Fetch all chunks belonging to this organization
     const chunks = await db
@@ -106,6 +106,7 @@ export async function queryKnowledgeBase(
         id: knowledgeChunks.id,
         title: knowledgeChunks.title,
         content: knowledgeChunks.content,
+        mediaUrl: knowledgeChunks.mediaUrl,
       })
       .from(knowledgeChunks)
       .where(eq(knowledgeChunks.organizationId, organizationId));
@@ -139,6 +140,10 @@ export async function queryKnowledgeBase(
           score += 3;
         }
       }
+      // If user asks for brochure/PDF and chunk has mediaUrl, boost score
+      if (chunk.mediaUrl && /(brochure|pdf|catalog|catalogue|price|document|floorplan)/i.test(query)) {
+        score += 5;
+      }
       return { chunk, score };
     });
 
@@ -150,9 +155,44 @@ export async function queryKnowledgeBase(
       .map(item => ({
         title: item.chunk.title,
         content: item.chunk.content,
+        mediaUrl: item.chunk.mediaUrl,
       }));
   } catch (err: any) {
     console.error('[KB Service] Query failed:', err.message);
     return [];
   }
+}
+
+/**
+ * Detects if the query asks for brochure / catalog / price sheet / PDF / document
+ * and returns the best matching mediaUrl if available.
+ */
+export async function findBrochureOrDocumentMatch(
+  organizationId: string,
+  query: string
+): Promise<{ mediaUrl: string; title?: string } | null> {
+  const isDocumentRequest = /(brochure|catalogue|catalog|price\s*list|rate\s*sheet|floor\s*plan|pdf|doc|details\s*file|send\s*document|bhejo\s*pdf|bhejo\s*brochure|share\s*brochure|send\s*brochure|brochure\s*bhejo)/i.test(query);
+
+  // 1. Query KB for top matching chunks
+  const chunks = await queryKnowledgeBase(organizationId, query, 5);
+  for (const c of chunks) {
+    if (c.mediaUrl && c.mediaUrl.trim()) {
+      return { mediaUrl: c.mediaUrl.trim(), title: c.title || 'Document' };
+    }
+  }
+
+  // 2. If user specifically asks for document/brochure, check any available source with mediaUrl
+  if (isDocumentRequest) {
+    const [matchedSource] = await db
+      .select({ id: knowledgeSources.id, name: knowledgeSources.name, mediaUrl: knowledgeSources.mediaUrl })
+      .from(knowledgeSources)
+      .where(and(eq(knowledgeSources.organizationId, organizationId), sql`${knowledgeSources.mediaUrl} IS NOT NULL`))
+      .limit(1);
+
+    if (matchedSource && matchedSource.mediaUrl) {
+      return { mediaUrl: matchedSource.mediaUrl, title: matchedSource.name };
+    }
+  }
+
+  return null;
 }

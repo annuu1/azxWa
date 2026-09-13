@@ -43,6 +43,21 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    let mediaUrl: string | null = null;
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const safeFileName = `${source.id}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'kb');
+      await fs.promises.mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, safeFileName);
+      await fs.promises.writeFile(filePath, buffer);
+      const appUrl = process.env.APP_URL || 'http://localhost:9091';
+      mediaUrl = `${appUrl}/uploads/kb/${safeFileName}`;
+    } catch (saveErr: any) {
+      console.warn('[KB Upload Route] Could not save physical file to disk:', saveErr.message);
+    }
+
     try {
       if (fileExtension === 'pdf') {
         extractedText = await extractTextFromPDF(buffer);
@@ -61,7 +76,7 @@ export async function POST(req: NextRequest) {
       // Chunk the text
       const chunks = chunkText(extractedText, 800, 100);
 
-      // Save chunks to the database
+      // Save chunks to the database with mediaUrl
       if (chunks.length > 0) {
         await db.insert(knowledgeChunks).values(
           chunks.map(chunkContent => ({
@@ -69,17 +84,18 @@ export async function POST(req: NextRequest) {
             sourceId: source.id,
             title: fileName,
             content: chunkContent,
+            mediaUrl: mediaUrl,
           }))
         );
       }
 
-      // Mark source as COMPLETED
+      // Mark source as COMPLETED with mediaUrl
       await db
         .update(knowledgeSources)
-        .set({ status: 'COMPLETED' })
+        .set({ status: 'COMPLETED', mediaUrl: mediaUrl })
         .where(eq(knowledgeSources.id, source.id));
 
-      return NextResponse.json({ success: true, sourceId: source.id });
+      return NextResponse.json({ success: true, sourceId: source.id, mediaUrl });
     } catch (parseErr: any) {
       // Mark source as FAILED
       await db

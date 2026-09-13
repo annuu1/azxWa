@@ -220,6 +220,7 @@ export const knowledgeSources = sqliteTable('knowledge_sources', {
   name: text('name').notNull(),
   type: text('type').default('FILE').notNull(), // 'FILE' | 'URL' | 'FAQ'
   status: text('status').default('COMPLETED').notNull(), // 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  mediaUrl: text('media_url'), // Direct brochure / PDF / image URL or asset link
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
@@ -230,6 +231,7 @@ export const knowledgeChunks = sqliteTable('knowledge_chunks', {
   sourceId: text('source_id').references(() => knowledgeSources.id, { onDelete: 'cascade' }).notNull(),
   title: text('title'), // e.g. section title, page name, or FAQ question
   content: text('content').notNull(), // chunk text or FAQ answer
+  mediaUrl: text('media_url'), // Direct brochure / PDF / image URL to dispatch on trigger
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
