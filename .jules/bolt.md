@@ -1,0 +1,3 @@
+## 2024-05-18 - Optimize O(N^2) Array Filtering in Pipeline Board
+**Learning:** Found a recurring pattern in `PipelineBoard` (`src/features/crm/components/pipeline-board.tsx`) where the array of leads was filtered entirely inside a map loop over stages (`stages.map(stage => leads.filter(l => l.stageId === stage.id))`), resulting in O(stages * leads) redundant operations on every render.
+**Action:** Always check React components rendering lists or boards for O(N^2) array filtering within render loops. Use `useMemo` to group the array by the mapping key once per render instead of filtering per iteration.
