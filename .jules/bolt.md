@@ -1,0 +1,3 @@
+## 2024-05-24 - Array Search Hoisting in Filter
+**Learning:** Found an instance in `src/features/crm/components/contacts-list.tsx` where string `.toLowerCase()` manipulations derived from a state variable (`searchTerm`) were executed repetitively inside an array `.filter` callback on every element, rather than being hoisted outside the loop and cached beforehand.
+**Action:** Always inspect array iterations and nested loops for expressions or variables that are constant throughout the execution of the loop and can be hoisted out. Additionally, ensure heavy mapping and filtering logic derived from React states are memoized with `useMemo` so they do not redundantly recalculate on unrelated state changes.
