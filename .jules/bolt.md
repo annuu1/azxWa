@@ -1,0 +1,3 @@
+## 2024-05-17 - Unnecessary list filtering re-renders
+**Learning:** Found an instance in `src/features/crm/components/contacts-list.tsx` where an expensive `.filter` operation over a list of contacts was happening on every render. Given that the component also has unrelated local state (like `qualifyingId` which toggles while async actions are in progress), this filter was re-running needlessly during UI interaction.
+**Action:** Always check array transformation operations (`.filter`, `.map`, `.sort`) at the top level of component bodies, especially those accepting lists as props and containing interactive local state. Wrap them in `useMemo` with the correct dependency array.

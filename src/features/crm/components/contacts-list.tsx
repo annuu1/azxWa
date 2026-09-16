@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Search, Plus, Filter, Tag, Check, Award, Eye, MessageSquare } from 'lucide-react';
@@ -24,18 +24,20 @@ export default function ContactsList({
   const [qualifyingId, setQualifyingId] = useState<string | null>(null);
 
   // Filter contacts based on search query and tag selection
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = 
-      (contact.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (contact.pushName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (contact.whatsappId || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredContacts = useMemo(() => {
+    return contacts.filter(contact => {
+      const matchesSearch =
+        (contact.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (contact.pushName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (contact.whatsappId || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesTag = 
-      selectedTagId === 'all' || 
-      contact.tags?.some((t: any) => t.id === selectedTagId);
+      const matchesTag =
+        selectedTagId === 'all' ||
+        contact.tags?.some((t: any) => t.id === selectedTagId);
 
-    return matchesSearch && matchesTag;
-  });
+      return matchesSearch && matchesTag;
+    });
+  }, [contacts, searchTerm, selectedTagId]);
 
   const handleQualifyLead = async (contactId: string) => {
     setQualifyingId(contactId);
