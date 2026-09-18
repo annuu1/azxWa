@@ -1,0 +1,3 @@
+## 2024-05-30 - O(N×M) filtering in render loops
+**Learning:** The codebase features nested rendering patterns like pipeline boards (`src/features/crm/components/pipeline-board.tsx`) where an array (`leads`) is repeatedly filtered for every group/stage (`stages.map`). Combined with frequent state updates for UI feedback (e.g., `loadingLeadId`), this causes O(N×M) work on every keystroke or interaction.
+**Action:** Bolt should actively look for inline `.filter()` calls inside `.map()` loops during component renders. Converting these to a single O(N) grouping pass stored in a `useMemo` Map, followed by an O(1) `.get()` lookup, provides immediate safety-checked performance gains.
