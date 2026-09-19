@@ -1,0 +1,3 @@
+## 2024-05-15 - [O(1) Map Lookups for React Rendering Optimization]
+**Learning:** Pipeline/Kanban boards in this project commonly perform inline `O(N)` `.filter()` calls inside render loops, resulting in `O(N*M)` complexity. Replacing these with `O(N)` passes via `useMemo` that build `O(1)` Map lookups is an effective optimization here.
+**Action:** When finding loops in JSX, check if repeated `.filter` calls on array props exist. If so, build a map with `useMemo` and use it for fast `O(1)` retrievals instead. Always infer types from existing arrays instead of using `any[]` to maintain type safety.
