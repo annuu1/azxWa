@@ -1,3 +1,0 @@
-## 2024-05-18 - Avoid repeated array filtering in render loops
-**Learning:** In components rendering lists by categories (like Kanban boards or grouped lists), using inline `.filter()` inside a `.map()` block across a large array of items causes $O(N \times M)$ rendering complexity, leading to performance bottlenecks when the number of items or categories scales.
-**Action:** Bolt should replace inline `.filter()` calls inside `.map()` rendering blocks with a pre-computed `Map` structure wrapped in a `useMemo` hook, grouping the items beforehand. This safely reduces rendering complexity to $O(N + M)$ without changing component behavior.
