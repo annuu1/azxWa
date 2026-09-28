@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Eye, User, RefreshCw, Layers } from 'lucide-react';
@@ -48,9 +48,21 @@ export default function PipelineBoard({
     }
   };
 
-  // Group leads by their stageId
+  // Optimization: Group leads by stageId in O(N) once, providing O(1) lookups during render
+  // instead of O(N*M) via repeated array filtering.
+  const leadsByStage = useMemo(() => {
+    const map = new Map<string, typeof leads>();
+    for (const lead of leads) {
+      if (!map.has(lead.stageId)) {
+        map.set(lead.stageId, []);
+      }
+      map.get(lead.stageId)!.push(lead);
+    }
+    return map;
+  }, [leads]);
+
   const getLeadsForStage = (stageId: string) => {
-    return leads.filter(l => l.stageId === stageId);
+    return leadsByStage.get(stageId) || [];
   };
 
   return (
