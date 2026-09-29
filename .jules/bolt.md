@@ -1,0 +1,3 @@
+## 2024-10-24 - Array Filtering in Render Loops
+**Learning:** The CRM dashboard components, specifically `PipelineBoard`, execute O(N*M) array filtering operations inside the render loop for every stage in the pipeline (e.g., `leads.filter(l => l.stageId === stage.id)`). This can cause significant rendering overhead when the leads array is large.
+**Action:** When inspecting frequently rendered lists or boards grouped by an ID, prioritize checking for inline O(N*M) array iterations. Replace them with a single `useMemo` block that constructs an O(1) Map grouped by the ID. Ensure type safety using `typeof array_variable`.
