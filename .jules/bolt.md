@@ -1,0 +1,3 @@
+## 2023-10-02 - Optimize repeated O(N*M) filtering in render loops
+**Learning:** The application codebase has multiple instances of unmemoized `.filter()` calls inside component render loops, specifically when mapping over parent structures (like filtering `leads` by `stageId` within a `.map` over `stages` in the CRM pipeline board). This creates an O(N*M) time complexity bottleneck on every render.
+**Action:** When inspecting frequently rendered components (especially those dealing with multiple arrays/collections), proactively look for opportunities to replace nested `.filter()` operations with O(1) `Map` lookups that group data ahead of time. Use `useMemo` to ensure the grouping map is only rebuilt when the underlying data changes, not on every re-render.
