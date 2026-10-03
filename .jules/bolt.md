@@ -1,0 +1,3 @@
+## 2024-07-26 - O(N*M) Rendering Anti-Pattern in Pipeline Lists
+**Learning:** The application frequently renders large lists of items (e.g. leads in `PipelineBoard` across stages) by repeatedly calling `.filter()` inside the render loop for each group. When the number of items or groups grows, this `O(stages.length * leads.length)` operation causes unnecessary render blocking.
+**Action:** Always scan rendering loops in `src/features/*/components/` for inline array methods (like `.filter()`). Replace them with a single `useMemo` that constructs an O(1) `Map` lookup grouping the items beforehand.
