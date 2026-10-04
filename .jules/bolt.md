@@ -1,0 +1,3 @@
+## 2024-05-24 - O(N*M) Pipeline Board Render Optimization
+**Learning:** In features like the CRM pipeline board (`PipelineBoard`), leads were being assigned to stages using repeated `.filter()` calls inside the `.map()` loop for stages (O(N*M)). This creates an inefficient render cycle, especially with large numbers of leads.
+**Action:** When finding inline array filters used to group items by a category within a map render, safely replace them with a `useMemo` block that groups the items into a `Map` structure for O(1) lookups during the render cycle. Use `typeof array` for the type inference inside the map declaration.
