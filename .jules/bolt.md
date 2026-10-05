@@ -1,0 +1,3 @@
+## 2024-10-05 - Replacing O(N*M) inline filtering with memoized Maps
+**Learning:** The application frequently renders large lists where child components or map iterations perform inline `.filter` calls on entire collections (like grouping leads by stage in `pipeline-board.tsx`). This results in O(N*M) execution time on every render.
+**Action:** When inspecting list or board components, look for `.filter` calls inside loops over a different collection. Extract them into a `useMemo` block that iterates once to build a `Map`, changing the rendering bottleneck to O(N+M) and reducing unnecessary recalculation.
