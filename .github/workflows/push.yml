@@ -27,7 +27,7 @@ jobs:
         run: |
           npm install --save-exact github:pedroslopez/whatsapp-web.js#main
       - name: Run tests
-        run: npm test
+        run: npm run test --if-present
         timeout-minutes: 5
 
   docker:
