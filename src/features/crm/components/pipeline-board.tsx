@@ -51,12 +51,14 @@ export default function PipelineBoard({
   // Group leads by their stageId
   const leadsByStage = useMemo(() => {
     // Optimization: Group leads into a Map by stageId to avoid O(N*M) filtering on every render
-    const map = new Map<string, typeof leads>();
+    const map = new Map<string, Array<typeof leads[number]>>();
     for (const lead of leads) {
-      if (!map.has(lead.stageId)) {
-        map.set(lead.stageId, []);
+      let stageLeads = map.get(lead.stageId);
+      if (!stageLeads) {
+        stageLeads = [];
+        map.set(lead.stageId, stageLeads);
       }
-      map.get(lead.stageId)!.push(lead);
+      stageLeads.push(lead);
     }
     return map;
   }, [leads]);
