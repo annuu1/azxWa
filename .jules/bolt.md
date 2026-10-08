@@ -1,0 +1,3 @@
+## 2024-10-24 - O(N*M) Filtering on Kanban Boards
+**Learning:** The `PipelineBoard` component in `src/features/crm/components/pipeline-board.tsx` was filtering the entire `leads` array for every column stage inside the main render loop. For `N` leads and `M` stages, this resulted in O(N*M) operations on every render, which becomes a bottleneck as the pipeline scales.
+**Action:** Replace inline `.filter` calls across groups with a single `useMemo` that builds a grouped `Map` (O(N) initialization, O(1) retrieval) to reduce the complexity to O(N + M). This pattern is a highly safe and highly effective target for other dashboard or board components.
