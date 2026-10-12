@@ -1,0 +1,3 @@
+## 2024-10-12 - O(N*M) Inline Filtering in Dashboard
+**Learning:** The CRM dashboard components, such as `pipeline-board.tsx`, frequently use unmemoized `array.filter()` operations inside render blocks mapping over a smaller array (like stages). This results in an O(N*M) calculation that runs on every render when a user interacts with the UI.
+**Action:** When inspecting components that map over categories (stages, tags, etc.), look for inner `filter()` operations on large arrays (leads, contacts). These can safely and easily be refactored into `useMemo` hooks returning O(1) `Map` lookups grouped by ID.
