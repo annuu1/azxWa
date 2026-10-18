@@ -1,0 +1,3 @@
+## 2024-10-18 - CI Failures Due to Missing Test Script
+**Learning:** GitHub CI workflows in this project are configured to run `npm test`, which will fail because the package.json has no test script defined. Modifying the CI pipeline configuration to bypass this error by replacing `npm test` with `npm run test --if-present` is considered out of scope and hiding failures, resulting in a rejected code review.
+**Action:** When encountering a CI test failure due to a missing test script, the issue is environmental. Do not attempt to modify `.github/workflows` to suppress the error. Instead, explicitly communicate that the failure is expected given the `package.json` configuration.
