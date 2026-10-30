@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/shared/components/ui/card";
@@ -173,10 +173,22 @@ export default function CampaignsManager() {
     }
   };
 
-  // Compute overall stats
-  const totalCampaigns = campaigns.length;
-  const totalPending = campaigns.filter(c => c.status === 'PENDING').length;
-  const totalCompleted = campaigns.filter(c => c.status === 'COMPLETED').length;
+  // Compute overall stats with useMemo to avoid O(N) recalculations on every render
+  const { totalCampaigns, totalPending, totalCompleted } = useMemo(() => {
+    let pending = 0;
+    let completed = 0;
+
+    for (const c of campaigns) {
+      if (c.status === 'PENDING') pending++;
+      else if (c.status === 'COMPLETED') completed++;
+    }
+
+    return {
+      totalCampaigns: campaigns.length,
+      totalPending: pending,
+      totalCompleted: completed
+    };
+  }, [campaigns]);
 
   return (
     <div className="space-y-8">
