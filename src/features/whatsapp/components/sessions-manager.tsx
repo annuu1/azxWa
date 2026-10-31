@@ -100,10 +100,11 @@ export default function WhatsAppSessionsManager({
 
   // Filter sessions based on search query and status filter
   const filteredSessions = useMemo(() => {
+    const lowerQuery = searchQuery.toLowerCase();
     return sessions.filter(session => {
-      const nameMatch = (session.sessionId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (session.phone || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (session.pushName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const nameMatch = (session.sessionId || '').toLowerCase().includes(lowerQuery) ||
+                        (session.phone || '').toLowerCase().includes(lowerQuery) ||
+                        (session.pushName || '').toLowerCase().includes(lowerQuery);
       
       if (!nameMatch) return false;
 

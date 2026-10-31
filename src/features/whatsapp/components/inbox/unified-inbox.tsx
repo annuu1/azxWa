@@ -290,9 +290,10 @@ export default function UnifiedInbox({ availableSessions }: UnifiedInboxProps) {
 
   // Filtered Chats
   const filteredChats = useMemo(() => {
+    const lowerQuery = searchQuery.toLowerCase();
     return chats.filter(chat => {
-      const nameMatch = (chat.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (chat.id?._serialized || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const nameMatch = (chat.name || '').toLowerCase().includes(lowerQuery) ||
+                        (chat.id?._serialized || '').toLowerCase().includes(lowerQuery);
       if (!nameMatch) return false;
 
       if (chatTab === 'direct') return !chat.isGroup;
