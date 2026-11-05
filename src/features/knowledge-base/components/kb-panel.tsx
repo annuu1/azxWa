@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -273,13 +273,24 @@ export default function KBPanel() {
     }
   };
 
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredUrls = urls.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredFaqs = faqs.filter(
-    f => 
-      (f.title?.toLowerCase().includes(searchQuery.toLowerCase()) || false) || 
-      f.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFiles = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return files.filter(f => f.name.toLowerCase().includes(query));
+  }, [files, searchQuery]);
+
+  const filteredUrls = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return urls.filter(u => u.name.toLowerCase().includes(query));
+  }, [urls, searchQuery]);
+
+  const filteredFaqs = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return faqs.filter(
+      f =>
+        (f.title?.toLowerCase().includes(query) || false) ||
+        f.content.toLowerCase().includes(query)
+    );
+  }, [faqs, searchQuery]);
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
