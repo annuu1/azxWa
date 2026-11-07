@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -273,13 +273,20 @@ export default function KBPanel() {
     }
   };
 
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredUrls = urls.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredFaqs = faqs.filter(
-    f => 
-      (f.title?.toLowerCase().includes(searchQuery.toLowerCase()) || false) || 
-      f.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const { filteredFiles, filteredUrls, filteredFaqs } = useMemo(() => {
+    const lowerQuery = searchQuery.toLowerCase();
+    return {
+      // ⚡ Bolt: Cache filtered files, URLs, and FAQs arrays and extract lowerQuery out of loops
+      // to avoid O(N*M) string re-allocations during typing or unrelated state updates.
+      filteredFiles: files.filter(f => f.name.toLowerCase().includes(lowerQuery)),
+      filteredUrls: urls.filter(u => u.name.toLowerCase().includes(lowerQuery)),
+      filteredFaqs: faqs.filter(
+        f =>
+          (f.title?.toLowerCase().includes(lowerQuery) || false) ||
+          f.content.toLowerCase().includes(lowerQuery)
+      )
+    };
+  }, [files, urls, faqs, searchQuery]);
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
