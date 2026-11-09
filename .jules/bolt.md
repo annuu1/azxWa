@@ -1,0 +1,3 @@
+## 2024-05-18 - Avoid repeated O(N*M) inline filtering and repetitive string allocations in Contacts List
+**Learning:** The `ContactsList` component had an unmemoized inline array filtering operation that calculated `toLowerCase()` up to three times per contact inside the `.filter` loop. This caused O(N) array iterations with excessive string allocations on every unrelated state update (e.g., when `qualifyingId` changed during lead qualification).
+**Action:** Use `useMemo` to cache filtered arrays based on specific dependencies, and extract invariant loop calculations (like `searchTerm.toLowerCase()`) outside the inner loop to prevent unnecessary re-renders and allocations in hot paths.
